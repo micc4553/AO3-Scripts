@@ -4,7 +4,6 @@
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
-// @grant        GM_xmlhttpRequest
 // @downloadURL  https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/AO3%20Tagging%20and%20Notes
 // ==/UserScript==
 
