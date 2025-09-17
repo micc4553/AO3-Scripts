@@ -4,6 +4,7 @@
 // @description  Add personal tags to AO3 works
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
+// @updateURL    https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Personal%20Tags
 // @downloadURL  https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Personal%20Tags
 // ==/UserScript==
 
