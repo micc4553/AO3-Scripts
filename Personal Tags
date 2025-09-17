@@ -131,7 +131,7 @@ function createTagManager(workInfo) {
     // Tag input
     const tagInput = document.createElement('input');
     tagInput.type = 'text';
-    tagInput.placeholder = 'Add personal tag...';
+    tagInput.placeholder = 'Add tag...';
     tagInput.style.cssText = 'flex: 1; padding: 5px; border: 1px solid #ccc; border-radius: 3px;';
     inputContainer.appendChild(tagInput);
 
