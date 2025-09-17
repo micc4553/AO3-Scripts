@@ -637,19 +637,16 @@ ficItems.forEach(item => {
 });
     }
 
-// Add this to showWorksForTag function before creating worksList
+// Replace your existing showWorksForTag function with this simplified version:
+
 async function showWorksForTag(tag, modal) {
     console.log("showWorksForTag called with:", tag);
-    console.log("Content element:", document.querySelector("#tag-browser-content"));
 
     try {
         const labels = Storage.loadLabels();
-        console.log("Labels loaded:", Object.keys(labels).length);
-
         const notes = Storage.loadNotes();
-        console.log("Notes loaded:", Object.keys(notes).length);
-
         const works = Object.keys(labels).filter(id => labels[id] === tag);
+        
         console.log("Works found:", works.length, works);
 
         if (works.length === 0) {
@@ -658,35 +655,68 @@ async function showWorksForTag(tag, modal) {
             return;
         }
 
-        // Show loading first
+        // Show loading state
         const content = document.querySelector("#tag-browser-content");
-        content.innerHTML = `<div>Loading works for ${tag}...</div>`;
+        content.innerHTML = `
+            <div style="text-align:center;padding:20px;">
+                <div>Loading works for ${tag}...</div>
+                <div style="margin:10px 0;">
+                    <div style="display:inline-block;width:30px;height:30px;border:3px solid #f3f3f3;border-top:3px solid #c4a7e7;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                </div>
+            </div>
+            <style>
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            </style>
+        `;
 
         const color = TAG_COLORS[tag] || { bg: "#6e6a86", text: "#000" };
 
-        // Fetch metadata for all works
+        // Fetch all metadata at once and wait for completion
+        console.log("Fetching metadata for", works.length, "works");
         const workData = await Promise.all(
             works.map(async (ficId) => {
-                const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
-                const metadata = await MetadataCache.fetchWorkMetadata(workId);
-                return { ficId, workId, metadata, note: notes[ficId] };
+                try {
+                    const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
+                    const metadata = await MetadataCache.fetchWorkMetadata(workId);
+                    return { 
+                        ficId, 
+                        workId, 
+                        metadata, 
+                        note: notes[ficId],
+                        dateAdded: getTagDate(ficId) || Date.now()
+                    };
+                } catch (error) {
+                    console.error("Error fetching metadata for", ficId, error);
+                    return {
+                        ficId,
+                        workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
+                        metadata: { title: `Work ${ficId}`, author: 'Unknown' },
+                        note: notes[ficId],
+                        dateAdded: getTagDate(ficId) || Date.now()
+                    };
+                }
             })
         );
-console.log("Work data fetched:", workData);
 
+        console.log("Metadata fetched successfully for", workData.length, "works");
+
+        // Sort by date added (most recent first)
+        workData.sort((a, b) => b.dateAdded - a.dateAdded);
+
+        // Generate the works list HTML
         const worksList = workData.map(({ ficId, workId, metadata, note }) => {
             return `
                 <div class="work-item" data-fic-id="${ficId}"
                      style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;
                             border:1px solid #ddd;position:relative;">
                     <div style="margin-bottom:8px;">
-                        <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;">
-                            ${metadata.title} by ${metadata.author}
+                        <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
+                            <strong>${metadata.title}</strong> by ${metadata.author}
                         </a>
                     </div>
                     ${note ? `
                         <div style="font-size:0.9em;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;">
-                            "${note.text}"
+                            <em>"${note.text}"</em>
                             ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
                         </div>
                     ` : ""}
@@ -698,46 +728,104 @@ console.log("Work data fetched:", workData);
             `;
         }).join("");
 
-      console.log("Works list HTML generated, length:", worksList.length);
-console.log("First 200 chars:", worksList.substring(0, 200));
+        console.log("Generated HTML for works list");
 
+        // Update the content with the complete interface
         content.innerHTML = `
             <div style="margin-bottom:20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <button id="back-to-tags" style="background:none;border:1px solid #666;padding:6px 12px;border-radius:4px;cursor:pointer;color:#fff;">
-            ← Back to Tags
-        </button>
-        <div style="display:flex;align-items:center;gap:10px;">
-            <div style="padding:6px 12px;border-radius:4px;font-weight:bold;background:${color.bg};color:${color.text};">
-                ${tag}
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <button id="back-to-tags" style="background:none;border:1px solid #666;padding:6px 12px;border-radius:4px;cursor:pointer;color:#fff;">
+                        ← Back to Tags
+                    </button>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="padding:6px 12px;border-radius:4px;font-weight:bold;background:${color.bg};color:${color.text};">
+                            ${tag}
+                        </div>
+                        <span style="color:#ccc;">${works.length} work${works.length === 1 ? "" : "s"}</span>
+                    </div>
+                </div>
             </div>
-            <span style="color:#ccc;">${works.length} work${works.length === 1 ? "" : "s"}</span>
-        </div>
-    </div>
-
-<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
-            <span style="color:#ccc;font-size:0.9em;">Sort by:</span>
-            <button id="sort-date-tagged" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Tag Date</button>
-            <button id="sort-date-updated" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Update Date</button>
-            <button id="sort-title" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Title A-Z</button>
-        </div>
-
-</div>
             <div id="works-list">${worksList}</div>
         `;
-console.log("Content innerHTML set, new length:", content.innerHTML.length);
 
-      // Sorting functionality
-let currentSort = 'date-tagged'; // default sort
-let worksData = works.map(ficId => {
-    const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
-    return {
-        ficId,
-        workId,
-        dateAdded: getTagDate(ficId) || Date.now(),
-        title: '',
-    };
-});
+        console.log("Content updated successfully");
+
+        // Helper function for getting tag dates
+        function getTagDate(ficId) {
+            const tagDates = Storage.loadTagDates();
+            return tagDates[ficId] || Date.now();
+        }
+
+        // Attach event listeners after DOM is updated
+        setTimeout(() => {
+            // Back button event listener
+            const backBtn = content.querySelector("#back-to-tags");
+            if (backBtn) {
+                backBtn.addEventListener("click", () => {
+                    // Recreate the main tag browser view
+                    createTagBrowserModal();
+                    modal.remove();
+                });
+            }
+
+            // Delete button event listeners
+            content.querySelectorAll(".delete-tag-btn").forEach(btn => {
+                btn.addEventListener("mouseenter", () => {
+                    btn.style.background = "#d32f2f";
+                    btn.style.transform = "scale(1.1)";
+                });
+
+                btn.addEventListener("mouseleave", () => {
+                    btn.style.background = "#f44336";
+                    btn.style.transform = "scale(1)";
+                });
+
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const ficId = btn.dataset.ficId;
+                    const tagToRemove = btn.dataset.tag;
+
+                    if (!confirm(`Remove "${tagToRemove}" tag from this story?`)) return;
+
+                    const labels = Storage.loadLabels();
+                    if (labels[ficId] === tagToRemove) {
+                        delete labels[ficId];
+                        Storage.saveLabels(labels);
+
+                        // Remove from UI with animation
+                        const workItem = btn.closest(".work-item");
+                        workItem.style.transition = "opacity 0.3s, transform 0.3s";
+                        workItem.style.opacity = "0";
+                        workItem.style.transform = "translateX(20px)";
+
+                        setTimeout(() => {
+                            workItem.remove();
+                            const remainingWorks = Object.keys(Storage.loadLabels()).filter(id => Storage.loadLabels()[id] === tagToRemove);
+                            if (remainingWorks.length === 0) {
+                                // Go back to main list if no works left
+                                backBtn.click();
+                            }
+                        }, 300);
+                    }
+                });
+            });
+        }, 100); // Small delay to ensure DOM is ready
+
+        console.log("Event listeners attached successfully");
+
+    } catch (error) {
+        console.error("Error in showWorksForTag:", error);
+        const content = document.querySelector("#tag-browser-content");
+        if (content) {
+            content.innerHTML = `
+                <div style="color:#f44336;text-align:center;padding:20px;">
+                    <div>Error loading works for "${tag}"</div>
+                    <div style="font-size:0.9em;margin-top:8px;">Please try again or check the console for details.</div>
+                </div>
+            `;
+        }
+    }
+}
 
 function getTagDate(ficId) {
     const tagDates = Storage.loadTagDates();
