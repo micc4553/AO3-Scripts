@@ -1,12 +1,10 @@
 // ==UserScript==
 // @name         AO3 Personal Tags
-// @namespace    http://tampermonkey.net/
 // @version      1.1.1
 // @description  Add personal tags to AO3 works
-// @author       You
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
-// @grant        none
+// @downloadURL  https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Personal%20Tags
 // ==/UserScript==
 
 (function() {
