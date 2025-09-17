@@ -1,0 +1,104 @@
+// ==UserScript==
+// @name         AO3 Default CSS for Work Pages
+// @version      1.4
+// @description  Apply default background and text colors to AO3 story text for both single and multi-chapter works
+// @match        https://archiveofourown.org/works/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+    // Only run on work pages (not collections, series, etc.)
+    if (!window.location.pathname.match(/^\/works\/\d+/)) {
+        return;
+    }
+    // Apply styling to both single-chapter and multi-chapter story content
+    const defaultStyles = `
+        /* MULTI-CHAPTER STORIES - Original selectors */
+        #chapters .chapter .userstuff,
+        #chapters .chapter .userstuff *,
+        #chapters .chapter h3.title,
+        #chapters .chapter h3.title *,
+        #chapters .chapter .title,
+        #chapters .chapter .title *,
+        .chapter h3,
+        .chapter h3 *,
+        /* SINGLE-CHAPTER STORIES - Additional selectors */
+        .work .userstuff,
+        .work .userstuff *,
+        div.userstuff.module,
+        div.userstuff.module *,
+        .userstuff:not(.comment .userstuff):not(.odd .userstuff):not(.even .userstuff),
+        .userstuff:not(.comment .userstuff):not(.odd .userstuff):not(.even .userstuff) *,
+        /* UNIVERSAL SELECTORS - Work for both types */
+        .work .title,
+        .work .title *,
+        .work .preface .title,
+        .work .preface .title *,
+        h2.title,
+        h2.title a,
+        .summary,
+        .summary *,
+        .work .summary,
+        .work .summary *,
+        .work .summary .userstuff,
+        .work .summary .userstuff *,
+        .work .preface .summary,
+        .work .preface .summary *,
+        dd.summary,
+        dd.summary *,
+        .meta dd.summary,
+        .meta dd.summary *,
+        /* NOTES SECTIONS */
+        .notes,
+        .notes *,
+        .work .notes,
+        .work .notes *,
+        .work .preface .notes,
+        .work .preface .notes *,
+        #chapters .chapter .notes,
+        #chapters .chapter .notes *,
+        dd.notes,
+        dd.notes *,
+        .end.notes,
+        .end.notes * {
+            color: #2a2a2a !important;
+            background-color: transparent !important;
+            background-image: none !important;
+        }
+        /* Set white background for story text containers - Multi-chapter */
+        #chapters .chapter {
+            background-color: #ffffff !important;
+            background-image: none !important;
+        }
+        /* Set white background for story text containers - Single-chapter */
+        .work div.userstuff.module,
+        .work .userstuff {
+            background-color: #ffffff !important;
+            background-image: none !important;
+        }
+        /* White background for main content areas - Both types */
+        #chapters,
+        #main,
+        .work .title,
+        .work .summary {
+            background-color: #ffffff !important;
+            background-image: none !important;
+        }
+        /* Extra specificity for stubborn single-chapter text */
+        #main .work .userstuff p,
+        #main .work .userstuff div,
+        #main .work .userstuff span,
+        #main .work div.userstuff.module p,
+        #main .work div.userstuff.module div,
+        #main .work div.userstuff.module span {
+            color: #2a2a2a !important;
+        }
+    `;
+    // Create and inject the style element
+    const styleElement = document.createElement('style');
+    styleElement.type = 'text/css';
+    styleElement.innerHTML = defaultStyles;
+    document.head.appendChild(styleElement);
+    console.log('AO3 story text styling applied for both single and multi-chapter works');
+})();
