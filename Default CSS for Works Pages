@@ -3,7 +3,8 @@
 // @version      1.4
 // @description  Apply default background and text colors to AO3 story text for both single and multi-chapter works
 // @match        https://archiveofourown.org/works/*
-// @grant        none
+// @icon         https://archiveofourown.org/favicon.ico
+// @downloadURL  https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Default%20CSS%20for%20Works%20Pages
 // ==/UserScript==
 
 (function() {
