@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.2.1
+// @version      8.2.3
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -115,13 +115,15 @@
         const style = document.createElement("style");
         style.id = 'ao3-global-styles';
         style.textContent = `
-            .fic-item {
-                transition: border 0.2s, box-shadow 0.2s;
-            }
-            .fic-item.selected {
-                border: 2px solid #c4a7e7 !important;
-                box-shadow: 0 0 10px #c4a7e7;
-            }
+.fic-item {
+    transition: border 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #666 !important;
+    box-sizing: border-box;
+}
+.fic-item.selected {
+    border-left: 4px solid #c4a7e7 !important;
+    box-shadow: 0 0 0 1px #c4a7e7;
+}
             @keyframes spin {
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
@@ -170,6 +172,16 @@ else if (target.matches(".refresh-fic-btn") || target.closest(".refresh-fic-btn"
     this.handleRefreshFic(button);
 }
 
+          // Download tag button - handle FIRST before tag item click
+if (target.matches(".download-tag-btn") || target.closest(".download-tag-btn")) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const button = target.closest(".download-tag-btn") || target;
+    const tag = button.dataset.tag;
+    this.handleDownloadTag(tag);
+    return; // Exit early to prevent further processing
+}
             // Tag item clicks
             else if (target.closest(".tag-item")) {
                 e.stopPropagation();
@@ -182,13 +194,6 @@ else if (target.matches(".refresh-fic-btn") || target.closest(".refresh-fic-btn"
             else if (target.closest(".author-notes-item")) {
                 e.stopPropagation();
                 this.handleAuthorNotesClick();
-            }
-
-            // Download tag button
-            else if (target.matches(".download-tag-btn")) {
-                e.stopPropagation();
-                const tag = target.dataset.tag;
-                this.handleDownloadTag(tag);
             }
 
             // Back to tags button
@@ -757,8 +762,7 @@ async handleRefreshFic(button) {
                             <span style="font-size:0.9em;">${count} work${count === 1 ? "" : "s"}</span>
                             ${(tag === 'Favourite' || tag === 'Dish') ? `
                                 <button class="download-tag-btn" data-tag="${tag}"
-                                        style="background:${color.bg};color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.8em;"
-                                        onclick="event.stopPropagation();">📚 Download</button>
+        style="background:${color.bg};color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.8em;">📚 Download</button>
                             ` : ''}
                         </div>
                     </div>
@@ -880,11 +884,21 @@ async handleRefreshFic(button) {
             this.updateSelectedCount();
         }
 
-        selectNew() {
-            // This would need access to the download history logic
-            // Implementation depends on how you determine "new" works
-            console.log("Select new functionality needs implementation");
+selectNew() {
+    const downloadHistory = Storage.loadDownloadHistory();
+    const checkboxes = this.modal.querySelectorAll('.work-checkbox');
+    const ficItems = this.modal.querySelectorAll('.fic-item');
+
+    checkboxes.forEach((cb, index) => {
+        const ficId = cb.dataset.ficId;
+        const isNew = !downloadHistory[ficId]; // Check individual fic, not tag
+        cb.checked = isNew;
+        if (ficItems[index]) {
+            ficItems[index].classList.toggle('selected', isNew);
         }
+    });
+    this.updateSelectedCount();
+}
 
         downloadSelected() {
             const checkboxes = this.modal.querySelectorAll('.work-checkbox');
@@ -1397,15 +1411,14 @@ async handleRefreshFic(button) {
                 );
 
                 const downloadHistory = Storage.loadDownloadHistory();
-                const tagHistory = downloadHistory[tag] || 0;
 
                 loadingModal.remove();
 
                 const worksList = workData.map(({ ficId, workId, metadata }) => {
-                    const isNew = !tagHistory || tagHistory === 0;
+                    const isNew = !downloadHistory[ficId];
                     return `
-                        <div class="fic-item" style="display:flex;align-items:center;gap:10px;padding:8px;border-left:4px solid #666;border-radius:4px;margin:4px 0;background:#44415a40;cursor:pointer;">
-                            <input type="checkbox" class="work-checkbox" data-fic-id="${ficId}" ${isNew ? 'checked' : ''}>
+                        <div class="fic-item ${isNew ? 'selected' : ''}" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:4px;margin:4px 0;background:#44415a40;cursor:pointer;">
+    <input type="checkbox" class="work-checkbox" data-fic-id="${ficId}" ${isNew ? 'checked' : ''}>
                             <div style="flex:1;">
                                 <div style="font-weight:bold;color:#fff;">${metadata.title}</div>
                                 <div style="font-size:0.9em;color:#ccc;">by ${metadata.author}</div>
@@ -1422,12 +1435,12 @@ async handleRefreshFic(button) {
                             ${lastDownloadTime ? `Last downloaded: ${new Date(lastDownloadTime).toLocaleDateString()}` : 'First time downloading this tag'}
                         </div>
 
-                        <div style="margin-bottom:15px;display:flex;gap:10px;flex-wrap:wrap;">
-                            <button id="select-all" style="background:#4CAF50;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select All</button>
-                            <button id="select-none" style="background:#ff9800;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select None</button>
-                            <button id="select-new" style="background:#2196F3;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select New Only</button>
-                            <span id="selected-count" style="align-self:center;margin-left:10px;font-weight:bold;">0 selected</span>
-                        </div>
+<div style="margin-bottom:15px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <button id="select-all" style="background:#4CAF50;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select All</button>
+    <button id="select-none" style="background:#ff9800;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select None</button>
+    <button id="select-new" style="background:#2196F3;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select New</button>
+    <span id="selected-count" style="margin-left:10px;font-weight:bold;">0 selected</span>
+</div>
 
                         <div id="works-container" style="max-height:300px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:10px;background:#232136CC;">
                             ${worksList}
@@ -1442,6 +1455,7 @@ async handleRefreshFic(button) {
 
                 // Use event delegation for this modal
                 const eventManager = new DownloadSelectionEventManager(modal);
+                eventManager.currentTag = tag;
                 eventManager.onDownloadSelected = (selected) => {
                     eventManager.destroy();
                     modal.remove();
@@ -1542,6 +1556,11 @@ async handleRefreshFic(button) {
             document.body.removeChild(link);
 
             URL.revokeObjectURL(url);
+
+          // Track individual fic download
+const downloadHistory = Storage.loadDownloadHistory();
+downloadHistory[ficId] = Date.now();
+Storage.saveDownloadHistory(downloadHistory);
         }
 
         fetchWorkContent(workId) {
@@ -1566,10 +1585,7 @@ async handleRefreshFic(button) {
         }
 
         finalizeDownloads() {
-            if (this.currentTag) {
-                this.setLastDownloadTime(this.currentTag, Date.now());
-            }
-
+            
             this.progressModal?.remove();
             this.progressModal = null;
             this.isDownloading = false;
@@ -1739,7 +1755,7 @@ async handleRefreshFic(button) {
                    document.querySelector("ul.primary.navigation") ||
                    document.querySelector("nav ul");
 
-        if (!nav || document.querySelector("#sync-settings-btn")) return;
+        if (!nav || document.querySelector("#browse-fics-btn")) return;
 
         const tagsLi = document.createElement("li");
         tagsLi.innerHTML = '<a href="#" id="browse-fics-btn">Fics</a>';
@@ -1787,9 +1803,8 @@ async handleRefreshFic(button) {
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span style="font-size:0.9em;">${count} work${count === 1 ? "" : "s"}</span>
                         ${(tag === 'Favourite' || tag === 'Dish') ? `
-                            <button class="download-tag-btn" data-tag="${tag}"
-                                    style="background:${color.bg};color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.8em;"
-                                    onclick="event.stopPropagation();">📚 Download</button>
+<button class="download-tag-btn" data-tag="${tag}"
+        style="background:${color.bg};color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.8em;">📚 Download</button>
                         ` : ''}
                     </div>
                 </div>
