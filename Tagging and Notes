@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.0.6
+// @version      8.0.7
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -142,19 +142,14 @@
 
     // Metadata Cache Manager
 class MetadataCache {
-    static get(workId) {
-        const cache = Storage.loadMetadataCache();
-        const cached = cache[workId];
-        // Increase cache duration to 30 days instead of 24 hours
-        if (cached && Date.now() - cached.timestamp < 30 * 24 * 60 * 60 * 1000) {
-            return cached.data;
-        }
-        return null;
-    }
+static get(workId) {
+    const cache = Storage.loadMetadataCache();
+    return cache[workId] || null;
+}
 
     static set(workId, data) {
         const cache = Storage.loadMetadataCache();
-        cache[workId] = { data, timestamp: Date.now() };
+        cache[workId] = data;
         Storage.saveMetadataCache(cache);
     }
 
@@ -353,7 +348,7 @@ static async fetchWorkMetadata(workId, skipNetworkFetch = false) {
         const cleaned = {};
 
         Object.entries(cache).forEach(([workId, entry]) => {
-            if (!entry.data.title.startsWith('Work ') || entry.data.author !== 'Unknown Author') {
+            if (!entry.title.startsWith('Work ') || entry.author !== 'Unknown Author') {
                 cleaned[workId] = entry;
             }
         });
