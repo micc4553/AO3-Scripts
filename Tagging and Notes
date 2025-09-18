@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.0.8
+// @version      8.1.2
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
 // @updateURL    https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/AO3%20Tagging%20and%20Notes
 // @downloadURL  https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/AO3%20Tagging%20and%20Notes
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 (function () {
@@ -19,7 +19,6 @@
         AUTHOR_NOTES: "ao3_author_notes",
         LAST_DOWNLOAD: "ao3_last_download",
         DOWNLOADED_WORKS: "ao3_downloaded_works",
-        TAG_DATES: "ao3_tag_dates",
         METADATA_CACHE: "ao3_metadata_cache"
     };
 
@@ -66,8 +65,6 @@
         static saveNotes(v) { this.save(KEYS.NOTES, v); }
         static loadAuthorNotes() { return this.load(KEYS.AUTHOR_NOTES); }
         static saveAuthorNotes(v) { this.save(KEYS.AUTHOR_NOTES, v); }
-        static loadTagDates() { return this.load(KEYS.TAG_DATES); }
-        static saveTagDates(v) { this.save(KEYS.TAG_DATES, v); }
         static loadDownloadHistory() { return this.load(KEYS.DOWNLOADED_WORKS); }
         static saveDownloadHistory(v) { this.save(KEYS.DOWNLOADED_WORKS, v); }
         static loadMetadataCache() { return this.load(KEYS.METADATA_CACHE); }
@@ -93,10 +90,10 @@
 
     // UI Utilities - Consolidated
     const UI = {
-        formatDateTime: (d) => d.toLocaleString(undefined, {
-            year: "numeric", month: "short", day: "numeric",
-            hour: "2-digit", minute: "2-digit"
-        }),
+        formatDateTime: (d) => d.toLocaleString('en-US', {
+    year: "numeric", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true
+}),
 
         createButton(text, styles = {}, onclick = null) {
             const btn = document.createElement("button");
@@ -553,28 +550,16 @@ async showSelectionModal(tag, allIds, lastDownloadTime) {
 
         // Fetch metadata for all works
 const workData = await Promise.all(
-    works.map(async (ficId) => {
+    allIds.map(async (ficId) => {
         try {
             const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
             const metadata = await MetadataCache.fetchWorkMetadata(workId);
-
-            // Assign today's date if no date exists
-            let dateAdded = getTagDate(ficId);
-            if (!dateAdded) {
-                dateAdded = Date.now(); // Today's date
-
-                // Save it so it's consistent going forward
-                const tagDates = Storage.loadTagDates();
-                tagDates[ficId] = dateAdded;
-                Storage.saveTagDates(tagDates);
-            }
 
             return {
                 ficId,
                 workId,
                 metadata,
-                note: notes[ficId],
-                dateAdded: dateAdded
+                note: Storage.loadNotes()[ficId],  // <-- Load notes properly
             };
         } catch (error) {
             console.error("Error fetching metadata for", ficId, error);
@@ -583,7 +568,6 @@ const workData = await Promise.all(
                 workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
                 metadata: { title: `Work ${ficId}`, author: 'Unknown' },
                 note: notes[ficId],
-                dateAdded: Date.now() // Also assign today's date for errors
             };
         }
     })
@@ -916,7 +900,6 @@ async function showWorksForTag(tag, modal) {
                         workId,
                         metadata,
                         note: notes[ficId],
-                        dateAdded: getTagDate(ficId) || Date.now()
                     };
                 } catch (error) {
                     console.error("Error fetching metadata for", ficId, error);
@@ -925,7 +908,6 @@ async function showWorksForTag(tag, modal) {
                         workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
                         metadata: { title: `Work ${ficId}`, author: 'Unknown' },
                         note: notes[ficId],
-                        dateAdded: getTagDate(ficId) || Date.now()
                     };
                 }
             })
@@ -980,9 +962,8 @@ content.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div style="display:flex;gap:8px;align-items:center;">
                 <span style="color:#ccc;font-size:0.9em;">Sort by:</span>
-                <button id="sort-date-tagged" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Date Tagged</button>
-                <button id="sort-title" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Title A-Z</button>
-                <button id="sort-work-id" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Work ID</button>
+                <button id="sort-work-id" style="background:${color.bg};color:${color.text};border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;box-shadow:0 0 8px 2px ${color.bg}55;">Work ID</button>
+<button id="sort-title" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Title A-Z</button>
             </div>
             <button id="refresh-metadata" style="background:none;border:1px solid #666;padding:4px 8px;border-radius:3px;cursor:pointer;color:#fff;font-size:0.8em;">
                 Refresh Titles
@@ -992,12 +973,6 @@ content.innerHTML = `
     <div id="works-list">${worksList}</div>
 `;
         console.log("Content updated successfully");
-
-        // Helper function for getting tag dates (moved up before it's used)
-        function getTagDate(ficId) {
-            const tagDates = Storage.loadTagDates();
-            return tagDates[ficId] || Date.now();
-        }
 
 function attachDeleteListeners() {
     content.querySelectorAll(".delete-tag-btn").forEach(btn => {
@@ -1049,16 +1024,15 @@ function attachDeleteListeners() {
             console.log("Attaching event listeners...");
 
 // SORTING BUTTONS
-const sortDateBtn = content.querySelector("#sort-date-tagged");
-const sortTitleBtn = content.querySelector("#sort-title");
 const sortWorkIDBtn = content.querySelector("#sort-work-id");
+const sortTitleBtn = content.querySelector("#sort-title");
 
 // Track active sort
-let activeSort = 'date-tagged';
+let activeSort = 'work-id';
 
 function updateSortButtonColors() {
     // Reset all buttons to default
-    [sortDateBtn, sortTitleBtn, sortWorkIDBtn].forEach(btn => {
+    [sortWorkIDBtn, sortTitleBtn].forEach(btn => {
         if (btn) {
             btn.style.background = '#555';
             btn.style.color = 'white';
@@ -1068,9 +1042,8 @@ function updateSortButtonColors() {
 
     // Highlight active button
     let activeBtn = null;
-    if (activeSort === 'date-tagged') activeBtn = sortDateBtn;
-    else if (activeSort === 'title') activeBtn = sortTitleBtn;
-    else if (activeSort === 'work-id') activeBtn = sortWorkIDBtn;
+if (activeSort === 'work-id') activeBtn = sortWorkIDBtn;
+else if (activeSort === 'title') activeBtn = sortTitleBtn;
 
     if (activeBtn) {
         activeBtn.style.background = color.bg;
@@ -1111,20 +1084,6 @@ function updateWorksList() {
 // Set initial colors
 updateSortButtonColors();
 
-if (sortDateBtn) {
-    sortDateBtn.addEventListener("click", () => {
-        console.log("Date sort clicked");
-        activeSort = 'date-tagged';
-        workData.sort((a, b) => {
-            const aDate = a.dateAdded || 0;
-            const bDate = b.dateAdded || 0;
-            return bDate - aDate;
-        });
-        updateWorksList();
-        updateSortButtonColors();
-    });
-}
-
 if (sortTitleBtn) {
     sortTitleBtn.addEventListener("click", () => {
         console.log("Title sort clicked");
@@ -1140,26 +1099,23 @@ if (sortWorkIDBtn) {
         console.log("Work ID sort clicked");
         activeSort = 'work-id';
 
-        workData.sort((a, b) => {
-            // Better work ID extraction with debugging
-            let aId = parseInt(a.workId);
-            let bId = parseInt(b.workId);
+// Sort by Work ID by default (newest published first)
+workData.sort((a, b) => {
+    let aId = parseInt(a.workId);
+    let bId = parseInt(b.workId);
 
-            // If parsing failed, try to extract from ficId
-            if (isNaN(aId)) {
-                const aMatch = a.ficId.match(/\d+/);
-                aId = aMatch ? parseInt(aMatch[0]) : 0;
-            }
+    if (isNaN(aId)) {
+        const aMatch = a.ficId.match(/\d+/);
+        aId = aMatch ? parseInt(aMatch[0]) : 0;
+    }
 
-            if (isNaN(bId)) {
-                const bMatch = b.ficId.match(/\d+/);
-                bId = bMatch ? parseInt(bMatch[0]) : 0;
-            }
+    if (isNaN(bId)) {
+        const bMatch = b.ficId.match(/\d+/);
+        bId = bMatch ? parseInt(bMatch[0]) : 0;
+    }
 
-            console.log(`Sorting: ${a.metadata.title} (ID: ${aId}) vs ${b.metadata.title} (ID: ${bId})`);
-
-            return bId - aId; // Highest ID first (newest published)
-        });
+    return bId - aId;
+});
 
         updateWorksList();
         updateSortButtonColors();
@@ -1346,7 +1302,7 @@ if (backBtn) {
         </div>
         <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
             <span style="color:#ccc;font-size:0.9em;">Sort by:</span>
-            <button id="sort-author-date" style="background:#cbb974;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Date Added</button>
+            <button id="sort-author-date" style="background:#cbb974;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;box-shadow:0 0 8px 2px #cbb97455;">Date Added</button>
             <button id="sort-author-name" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Name A-Z</button>
         </div>
     </div>
@@ -1364,13 +1320,17 @@ function updateAuthorSortButtons(activeSort) {
     if (activeSort === 'date') {
         dateBtn.style.background = '#cbb974';
         dateBtn.style.color = '#fff';
+        dateBtn.style.boxShadow = '0 0 8px 2px #cbb97455';
         nameBtn.style.background = '#555';
         nameBtn.style.color = 'white';
+        nameBtn.style.boxShadow = 'none';
     } else {
         nameBtn.style.background = '#cbb974';
         nameBtn.style.color = '#fff';
+        nameBtn.style.boxShadow = '0 0 8px 2px #cbb97455';
         dateBtn.style.background = '#555';
         dateBtn.style.color = 'white';
+        dateBtn.style.boxShadow = 'none';
     }
 }
 
@@ -1383,8 +1343,8 @@ function sortAndDisplayAuthors(sortType) {
     } else {
         // Sort by date added (most recent first)
         authorsData.sort((a, b) => {
-    const aDate = new Date(a.note.date).getTime() || Date.parse(a.note.date) || 0;
-    const bDate = new Date(b.note.date).getTime() || Date.parse(b.note.date) || 0;
+    const aDate = Date.parse(a.note.date) || 0;
+    const bDate = Date.parse(b.note.date) || 0;
     return bDate - aDate;
 });
     }
@@ -1817,22 +1777,6 @@ function init() {
     // Add navigation buttons
     addSettingsButton();
 
-    // Initialize tag dates for existing labels
-    const labels = Storage.loadLabels();
-    const tagDates = Storage.loadTagDates();
-    let updated = false;
-
-    Object.keys(labels).forEach(ficId => {
-        if (!tagDates[ficId]) {
-            tagDates[ficId] = Date.now() - (24 * 60 * 60 * 1000);
-            updated = true;
-        }
-    });
-
-    if (updated) {
-        Storage.saveTagDates(tagDates);
-    }
-
     // Process work listing pages (existing functionality)
     processWorksOnPage();
 
@@ -2133,21 +2077,17 @@ function addCompleteTagging(work, workId) {
 
 function toggleWorkTag(workId, tag) {
     const labels = Storage.loadLabels();
-    const tagDates = Storage.loadTagDates();
 
     if (labels[workId] === tag) {
         // Remove tag
         delete labels[workId];
-        delete tagDates[workId];
 
     } else {
         // Add tag
         labels[workId] = tag;
-        tagDates[workId] = Date.now();
     }
 
     Storage.saveLabels(labels);
-    Storage.saveTagDates(tagDates);
 }
 
 function refreshWorkTagging(work, workId) {
