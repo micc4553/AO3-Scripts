@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.1.2
+// @version      8.1.5
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -17,6 +17,7 @@
         LABELS: "ao3_fic_labels",
         NOTES: "ao3_fic_notes",
         AUTHOR_NOTES: "ao3_author_notes",
+      DELETED_AUTHOR_NOTES: "ao3_deleted_author_notes",
         LAST_DOWNLOAD: "ao3_last_download",
         DOWNLOADED_WORKS: "ao3_downloaded_works",
         METADATA_CACHE: "ao3_metadata_cache"
@@ -34,16 +35,6 @@
         Favourite: { bg: "#d6a5c9", text: "#fff" },
         Dish: { bg: "#a85c6b", text: "#fff" },
     };
-
-  const tagColors = {
-    "Finished": "#51cf66",
-    "To Read": "#4CAF50",
-    "Not Interested": "#ff9800",
-    "Dropped": "#ff6b6b",
-    "Disliked": "#ff3c3c",
-    "Favourite": "#c4a7e7",
-    "Dish": "#ff6bcb"
-};
 
     // Utility Functions - Consolidated
     class Storage {
@@ -69,24 +60,9 @@
         static saveDownloadHistory(v) { this.save(KEYS.DOWNLOADED_WORKS, v); }
         static loadMetadataCache() { return this.load(KEYS.METADATA_CACHE); }
         static saveMetadataCache(v) { this.save(KEYS.METADATA_CACHE, v); }
+      static loadDeletedAuthorNotes() { return this.load('ao3_deleted_author_notes'); }
+static saveDeletedAuthorNotes(v) { this.save('ao3_deleted_author_notes', v); }
     }
-
-    // Validation utilities
-    const Validator = {
-        isValidWorkId(id) {
-            if (!id || typeof id !== "string") return false;
-            if (id.includes('null') || id.includes('undefined') || id.includes('NaN')) return false;
-            if (id.trim() === '' || id.length > 200) return false;
-            return /^(bookmark_\d+|\d+|work_\d+)$/.test(id) || /bookmark_\d+/.test(id);
-        },
-
-        isValidAuthorId(id) {
-            if (!id || typeof id !== "string") return false;
-            if (id.includes('null') || id.includes('undefined') || id.includes('NaN')) return false;
-            if (id.trim() === '' || /^\d+$/.test(id) || id.length > 100) return false;
-            return /^[a-zA-Z0-9_-]+(_[a-zA-Z0-9_-]+)?$/.test(id);
-        }
-    };
 
     // UI Utilities - Consolidated
     const UI = {
@@ -109,27 +85,27 @@
             return btn;
         },
 
-        createModal(content, title = "") {
-            const modal = document.createElement("div");
-            modal.innerHTML = `
-                <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100000;display:flex;align-items:center;justify-content:center;">
-                    <div style="background:#232136CC;color:#fff;padding:20px;border-radius:8px;max-width:90%;max-height:80%;border:1px solid #ddd;overflow-y:auto;">
-                        ${title ? `<h3 style="margin-top:0;color:#fff;">${title}</h3>` : ""}
-                        ${content}
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
+createModal(content, title = "") {
+    const modal = document.createElement("div");
+    modal.innerHTML = `
+        <div class="backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100000;display:flex;align-items:center;justify-content:center;">
+            <div class="modal-content" style="background:#232136CC;color:#fff;padding:20px;border-radius:8px;max-width:90%;max-height:80%;border:1px solid #ddd;overflow-y:auto;">
+                ${title ? `<h3 style="margin-top:0;color:#fff;">${title}</h3>` : ""}
+                ${content}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
 
-            // Close on backdrop click
-            modal.addEventListener("click", (e) => {
-                if (e.target === modal || e.target.style.background?.includes("rgba")) {
-                    modal.remove();
-                }
-            });
+    // Close on backdrop click only
+    modal.addEventListener("click", (e) => {
+        if (e.target.classList.contains('backdrop')) {
+            modal.remove();
+        }
+    });
 
-            return modal;
-        },
+    return modal;
+},
 
         addHoverEffect(element, hoverStyles = {}, normalStyles = {}) {
             element.addEventListener("mouseenter", () => Object.assign(element.style, hoverStyles));
@@ -276,25 +252,34 @@ static async fetchWorkMetadata(workId, skipNetworkFetch = false) {
             }
         }
 
-        // Try multiple selectors for author
-        const authorSelectors = [
-            'a[rel="author"]',     // Standard author link
-            '.byline a',           // Byline author
-            'h3.byline a',         // H3 byline
-            '.preface .byline a',  // Preface byline
-            'a[href*="/users/"]',  // Any user link
-            '.work .preface .byline a' // Work preface byline
-        ];
+// Try multiple selectors for author
+const authorSelectors = [
+    'a[rel="author"]',     // Standard author link
+    '.preface .byline a[href*="/users/"]',  // Preface byline user link only
+    '.work .byline a[href*="/users/"]',     // Work byline user link only
+    '#workskin .byline a[href*="/users/"]'  // Workskin byline user link only
+];
 
-        for (const selector of authorSelectors) {
-            const authorEl = doc.querySelector(selector);
-            if (authorEl && authorEl.textContent.trim()) {
-                author = authorEl.textContent.trim();
-                console.log(`Found author with selector "${selector}": ${author}`);
-                break;
-            }
+for (const selector of authorSelectors) {
+    const authorEl = doc.querySelector(selector);
+    if (authorEl && authorEl.textContent.trim()) {
+        const authorText = authorEl.textContent.trim();
+        // Skip if it's the "Hi, username!" greeting
+        if (!authorText.toLowerCase().startsWith('hi,') && !authorText.includes('Log In')) {
+            author = authorText;
+            console.log(`Found author with selector "${selector}": ${author}`);
+            break;
         }
-
+    }
+}
+// Check for anonymous author if no author link found
+if (!author) {
+    const bylineText = doc.querySelector('.byline')?.textContent || doc.querySelector('h3.byline')?.textContent || doc.querySelector('.preface .byline')?.textContent;
+    if (bylineText && bylineText.includes('Anonymous')) {
+        author = 'Anonymous';
+        console.log('Found anonymous author');
+    }
+}
         // If we still don't have title, try getting it from the page title
         if (!title) {
             const pageTitle = doc.querySelector('title')?.textContent;
@@ -603,7 +588,7 @@ const modal = UI.createModal(`
         </div>
 
         <div style="margin-bottom:15px;display:flex;gap:10px;flex-wrap:wrap;">
-            <button id="select-all" style="background:#4CAF50;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select All (${allIds.length})</button>
+            <button id="select-all" style="background:#4CAF50;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select All</button>
             <button id="select-none" style="background:#ff9800;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select None</button>
             <button id="select-new" style="background:#2196F3;color:white;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">Select New Only</button>
             <span id="selected-count" style="align-self:center;margin-left:10px;font-weight:bold;">0 selected</span>
@@ -620,17 +605,21 @@ const modal = UI.createModal(`
     </div>
 `, `Select ${tag} Works to Download`);
 
-const style = document.createElement("style");
-style.textContent = `
-  .fic-item {
-    transition: border 0.2s, box-shadow 0.2s;
-  }
-  .fic-item.selected {
-    border: 2px solid #c4a7e7 !important;
-    box-shadow: 0 0 10px #c4a7e7;
-  }
-`;
-document.head.appendChild(style);
+// Only inject CSS when first needed
+if (!document.getElementById('ao3-download-modal-styles')) {
+    const style = document.createElement("style");
+    style.id = 'ao3-download-modal-styles';
+    style.textContent = `
+      .fic-item {
+        transition: border 0.2s, box-shadow 0.2s;
+      }
+      .fic-item.selected {
+        border: 2px solid #c4a7e7 !important;
+        box-shadow: 0 0 10px #c4a7e7;
+      }
+    `;
+    document.head.appendChild(style);
+}
 
       // Prevent clicks inside works-container from closing the modal
 const worksContainer = modal.querySelector('#works-container');
@@ -795,9 +784,9 @@ function clearMetadataCache() {
 
         const modal = document.createElement("div");
         modal.id = "tag-browser-modal";
-        modal.innerHTML = `
-            <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100000;display:flex;align-items:center;justify-content:center;">
-                <div style="background:#232136CC;color:#fff;padding:0;border-radius:8px;width:90%;max-width:600px;height:80%;max-height:700px;display:flex;flex-direction:column;border:1px solid #ddd;">
+modal.innerHTML = `
+    <div class="backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100000;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#232136CC;color:#fff;padding:0;border-radius:8px;width:90%;max-width:600px;height:80%;max-height:700px;display:flex;flex-direction:column;border:1px solid #ddd;">
                     <div style="padding:20px;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
                         <h3 style="margin:0;color:#fff;">Browse Tagged Fics (${Object.keys(labels).length} total)</h3>
                     </div>
@@ -848,9 +837,9 @@ function clearMetadataCache() {
 });
         }
 
-        // Close on backdrop click
-        modal.addEventListener("click", e => {
-    if (e.target === modal || e.target.style.background?.includes("rgba")) modal.remove();
+// Close on backdrop click
+modal.addEventListener("click", e => {
+    if (e.target.classList.contains('backdrop')) modal.remove();
 });
     }
 
@@ -915,8 +904,23 @@ async function showWorksForTag(tag, modal) {
 
         console.log("Metadata fetched successfully for", workData.length, "works");
 
-        // Sort by date added (most recent first)
-        workData.sort((a, b) => b.dateAdded - a.dateAdded);
+// Sort by Work ID (newest/highest first)
+workData.sort((a, b) => {
+    let aId = parseInt(a.workId);
+    let bId = parseInt(b.workId);
+
+    if (isNaN(aId)) {
+        const aMatch = a.ficId.match(/\d+/);
+        aId = aMatch ? parseInt(aMatch[0]) : 0;
+    }
+
+    if (isNaN(bId)) {
+        const bMatch = b.ficId.match(/\d+/);
+        bId = bMatch ? parseInt(bMatch[0]) : 0;
+    }
+
+    return bId - aId; // Higher IDs first
+});
 
         // Generate the works list HTML
         const worksList = workData.map(({ ficId, workId, metadata, note }) => {
@@ -925,20 +929,26 @@ async function showWorksForTag(tag, modal) {
                      style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;
                             border:1px solid #ddd;position:relative;">
                     <div style="margin-bottom:8px;">
-                        <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
-                            <strong>${metadata.title}</strong> by ${metadata.author}
-                        </a>
-                    </div>
+<a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
+    <strong>${metadata.title}</strong> by ${metadata.author}
+</a>
+<button class="refresh-fic-btn" data-fic-id="${ficId}" data-work-id="${workId}"
+        style="background:transparent;color:#ccc;border:none;cursor:pointer;margin-left:8px;box-shadow:none;padding:0;outline:none;position:relative;top:-15px;height:0;overflow:visible;transform-origin:center center;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+    </svg>
+</button>
+  </div>
                     ${note ? `
                         <div style="font-size:0.9em;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;">
                             <em>"${note.text}"</em>
                             ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
                         </div>
                     ` : ""}
-                    <button class="delete-tag-btn" data-fic-id="${ficId}" data-tag="${tag}"
-                            style="position:absolute;top:8px;right:8px;background:#f44336;color:white;
-                                   border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;
-                                   font-size:12px;">×</button>
+<button class="delete-tag-btn" data-fic-id="${ficId}" data-tag="${tag}"
+        style="position:absolute;top:8px;right:8px;background:#f44336;color:white;
+               border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;
+               font-size:12px;">×</button>
                 </div>
             `;
         }).join("");
@@ -1017,6 +1027,45 @@ function attachDeleteListeners() {
             }
         });
     });
+// Add refresh button listeners
+content.querySelectorAll(".refresh-fic-btn").forEach(btn => {
+btn.addEventListener("mouseenter", () => {
+    btn.style.transformOrigin = "center";
+    btn.style.transform = "scale(1.2)";
+});
+btn.addEventListener("mouseleave", () => {
+    btn.style.transform = "scale(1)";
+});
+    btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const workId = btn.dataset.workId;
+
+        btn.innerHTML = "✅";
+        btn.disabled = true;
+
+ try {
+        // Clear the cached entry first
+        const cache = Storage.loadMetadataCache();
+        delete cache[workId];
+        Storage.saveMetadataCache(cache);
+
+        // Force refresh this specific work
+        const newMetadata = await MetadataCache.fetchWorkMetadata(workId, false);
+
+        // Update just the author text in place
+        const workItem = btn.closest('.work-item');
+        const authorLink = workItem.querySelector('a');
+        const currentText = authorLink.innerHTML;
+        const newText = currentText.replace(/by .+$/, `by ${newMetadata.author}`);
+        authorLink.innerHTML = newText;
+ }      catch (error) {
+            console.error("Failed to refresh metadata:", error);
+            btn.textContent = "❌";
+            btn.disabled = false;
+        }
+    });
+});
+
 }
 
 // Add sorting event listeners
@@ -1059,20 +1108,26 @@ function updateWorksList() {
                  style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;
                         border:1px solid #ddd;position:relative;">
                 <div style="margin-bottom:8px;">
-                    <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
-                        <strong>${metadata.title}</strong> by ${metadata.author}
-                    </a>
-                </div>
+<a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
+    <strong>${metadata.title}</strong> by ${metadata.author}
+</a>
+<button class="refresh-fic-btn" data-fic-id="${ficId}" data-work-id="${workId}"
+        style="background:transparent;color:#ccc;border:none;cursor:pointer;margin-left:8px;box-shadow:none;padding:0;outline:none;position:relative;top:-15px;height:0;overflow:visible;transform-origin:center center;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+    </svg>
+</button>
+  </div>
                 ${note ? `
                     <div style="font-size:0.9em;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;">
                         <em>"${note.text}"</em>
                         ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
                     </div>
                 ` : ""}
-                <button class="delete-tag-btn" data-fic-id="${ficId}" data-tag="${tag}"
-                        style="position:absolute;top:8px;right:8px;background:#f44336;color:white;
-                               border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;
-                               font-size:12px;">×</button>
+<button class="delete-tag-btn" data-fic-id="${ficId}" data-tag="${tag}"
+        style="position:absolute;top:8px;right:8px;background:#f44336;color:white;
+               border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;
+               font-size:12px;">×</button>
             </div>
         `;
     }).join("");
@@ -1124,7 +1179,6 @@ workData.sort((a, b) => {
 
  // BACK BUTTON - Fix this
 const backBtn = content.querySelector("#back-to-tags");
-console.log("Back button found:", backBtn);
 
 if (backBtn) {
     backBtn.addEventListener("click", (e) => {
@@ -1276,7 +1330,7 @@ if (backBtn) {
                     </a>
                 </div>
                 <div style="font-size:0.95em;padding:8px;background:#44415a40;border-radius:4px;border-left:3px solid #cbb974;">
-                    <div style="white-space:pre-wrap;">"${note.text}"</div>
+                    <div style="white-space:pre-wrap;"><em>"${note.text}"</em></div>
                     ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
                 </div>
                 <button class="delete-author-note-btn" data-author-id="${authorId}"
@@ -1357,7 +1411,7 @@ function sortAndDisplayAuthors(sortType) {
                 </a>
             </div>
             <div style="font-size:0.95em;padding:8px;background:#44415a40;border-radius:4px;border-left:3px solid #cbb974;">
-                <div style="white-space:pre-wrap;">"${note.text}"</div>
+                <div style="white-space:pre-wrap;"><em>"${note.text}"</em></div>
                 ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
             </div>
             <button class="delete-author-note-btn" data-author-id="${authorId}" style="position:absolute;top:8px;right:8px;background:#f44336;color:white;border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:12px;">×</button>
@@ -1374,7 +1428,7 @@ function sortAndDisplayAuthors(sortType) {
 content.querySelector('#sort-author-date').addEventListener('click', () => sortAndDisplayAuthors('date'));
 content.querySelector('#sort-author-name').addEventListener('click', () => sortAndDisplayAuthors('name'));
 
-// Function to re-attach delete listeners (move the existing delete button code here)
+// Function to re-attach delete listeners
 function attachAuthorDeleteListeners() {
     const deleteButtons = content.querySelectorAll(".delete-author-note-btn");
     deleteButtons.forEach((btn) => {
@@ -1382,32 +1436,53 @@ function attachAuthorDeleteListeners() {
             btn.style.background = "#d32f2f";
             btn.style.transform = "scale(1.1)";
         });
+
         btn.addEventListener("mouseleave", () => {
             btn.style.background = "#f44336";
             btn.style.transform = "scale(1)";
         });
+
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
             const authorId = btn.dataset.authorId;
+
             if (!confirm(`Delete note for author "${authorId}"?`)) return;
 
+            // Load current author notes
             const authorNotes = Storage.loadAuthorNotes();
+
+            // Track the deletion (this prevents sync from restoring it)
+            const deletedAuthorNotes = Storage.loadDeletedAuthorNotes();
+            deletedAuthorNotes[authorId] = {
+                note: authorNotes[authorId],
+                deletedAt: Date.now(),
+                reason: 'Deleted by user'
+            };
+            Storage.saveDeletedAuthorNotes(deletedAuthorNotes);
+
+            // Actually delete the note
             delete authorNotes[authorId];
             Storage.saveAuthorNotes(authorNotes);
 
+            // Remove from UI with animation
             const noteItem = btn.closest(".author-note-item");
             if (noteItem) {
                 noteItem.style.transition = "opacity 0.3s, transform 0.3s";
                 noteItem.style.opacity = "0";
                 noteItem.style.transform = "translateX(20px)";
+
                 setTimeout(() => {
                     noteItem.remove();
+
+                    // Update count
                     const remainingNotes = Object.keys(Storage.loadAuthorNotes());
                     const countDisplay = content.querySelector("span");
-                    if (countDisplay) {
+                    if (countDisplay && countDisplay.textContent.includes("author")) {
                         const newCount = remainingNotes.length;
                         countDisplay.textContent = `${newCount} author${newCount === 1 ? "" : "s"}`;
                     }
+
+                    // Go back to main view if no notes left
                     if (remainingNotes.length === 0) {
                         setTimeout(() => content.querySelector("#back-to-tags").click(), 300);
                     }
@@ -1499,40 +1574,7 @@ if (authorNotesItem) {
         showAuthorNotes(modal);
     });
 }
-
 });
-
-        // Delete author note buttons
-        content.querySelectorAll(".delete-author-note-btn").forEach(btn => {
-            UI.addHoverEffect(btn,
-                { background: "#d32f2f", transform: "scale(1.1)" },
-                { background: "#f44336", transform: "scale(1)" }
-            );
-
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const authorId = btn.dataset.authorId;
-
-                if (!confirm(`Delete note for author "${authorId}"?`)) return;
-
-                const authorNotes = Storage.loadAuthorNotes();
-                delete authorNotes[authorId];
-
-                Storage.saveAuthorNotes(authorNotes);
-
-                const noteItem = btn.closest(".author-note-item");
-                noteItem.style.transition = "opacity 0.3s, transform 0.3s";
-                noteItem.style.opacity = "0";
-                noteItem.style.transform = "translateX(20px)";
-
-                setTimeout(() => {
-                    noteItem.remove();
-                    if (Object.keys(Storage.loadAuthorNotes()).length === 0) {
-                        content.querySelector("#back-to-tags").click();
-                    }
-                }, 300);
-            });
-        });
     }
 
     // Note creation UI - Simplified
@@ -1612,8 +1654,7 @@ function showNote(noteData) {
     // Note text container
     const content = document.createElement("div");
     content.textContent = noteData.text; // Use textContent to preserve text safely
-    content.style.cssText =
-        "white-space:pre-wrap;width:100%;box-sizing:border-box;border-top:1px solid #ccc;padding-top:8px;margin-top:8px;font-size:0.85em;text-align:center;";
+    content.style.cssText = "white-space:pre-wrap;width:100%;box-sizing:border-box;border-top:1px solid #ccc;padding-top:8px;margin-top:8px;font-size:0.85em;text-align:center;";
 
     // Assemble everything
     outer.append(header, content);
