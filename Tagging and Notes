@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.0.7
+// @version      8.0.8
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -1211,7 +1211,6 @@ if (backBtn) {
             `;
         }).join("");
 
-        // ADD THE AUTHOR NOTES SECTION BACK
         const authorNotesSection = Object.keys(authorNotes).length > 0 ? `
             <div style="margin-top:20px;padding-top:20px;border-top:1px solid #555;">
                 <div class="author-notes-item" data-section="author-notes"
@@ -1226,7 +1225,6 @@ if (backBtn) {
 
         content.innerHTML = refreshedTagsList + authorNotesSection;
 
-        // Re-attach click listeners for tag items
         content.querySelectorAll(".tag-item").forEach(item => {
             const tag = item.dataset.tag;
             const color = TAG_COLORS[tag] || { bg: "#6e6a86", text: "#000" };
@@ -1332,22 +1330,138 @@ if (backBtn) {
         `).join("");
 
         const content = document.querySelector("#tag-browser-content");
-        content.innerHTML = `
-            <div style="margin-bottom:20px;">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <button id="back-to-tags" style="background:none;border:1px solid #666;padding:6px 12px;border-radius:4px;cursor:pointer;color:#fff;">
-                    ← Back to Tags
-                </button>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="padding:6px 12px;border-radius:4px;font-weight:bold;background:#cbb974;color:#fff;">
-                        📝 Author Notes
-                    </div>
-                    <span style="color:#ccc;">${sortedAuthors.length} author${sortedAuthors.length === 1 ? "" : "s"}</span>
+
+      content.innerHTML = `
+    <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <button id="back-to-tags" style="background:none;border:1px solid #666;padding:6px 12px;border-radius:4px;cursor:pointer;color:#fff;">
+                ← Back to Tags
+            </button>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="padding:6px 12px;border-radius:4px;font-weight:bold;background:#cbb974;color:#fff;">
+                    📝 Author Notes
                 </div>
+                <span style="color:#ccc;">${sortedAuthors.length} author${sortedAuthors.length === 1 ? "" : "s"}</span>
             </div>
         </div>
-            <div id="authors-list">${authorsList}</div>
-        `;
+        <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+            <span style="color:#ccc;font-size:0.9em;">Sort by:</span>
+            <button id="sort-author-date" style="background:#cbb974;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Date Added</button>
+            <button id="sort-author-name" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Name A-Z</button>
+        </div>
+    </div>
+    <div id="authors-list">${authorsList}</div>
+`;
+
+      // Sorting functionality for author notes
+let currentAuthorSort = 'date';
+let authorsData = sortedAuthors.map(([authorId, note]) => ({ authorId, note }));
+
+function updateAuthorSortButtons(activeSort) {
+    const dateBtn = content.querySelector('#sort-author-date');
+    const nameBtn = content.querySelector('#sort-author-name');
+
+    if (activeSort === 'date') {
+        dateBtn.style.background = '#cbb974';
+        dateBtn.style.color = '#fff';
+        nameBtn.style.background = '#555';
+        nameBtn.style.color = 'white';
+    } else {
+        nameBtn.style.background = '#cbb974';
+        nameBtn.style.color = '#fff';
+        dateBtn.style.background = '#555';
+        dateBtn.style.color = 'white';
+    }
+}
+
+function sortAndDisplayAuthors(sortType) {
+    currentAuthorSort = sortType;
+    updateAuthorSortButtons(sortType);
+
+    if (sortType === 'name') {
+        authorsData.sort((a, b) => a.authorId.localeCompare(b.authorId));
+    } else {
+        // Sort by date added (most recent first)
+        authorsData.sort((a, b) => {
+    const aDate = new Date(a.note.date).getTime() || Date.parse(a.note.date) || 0;
+    const bDate = new Date(b.note.date).getTime() || Date.parse(b.note.date) || 0;
+    return bDate - aDate;
+});
+    }
+
+    const sortedAuthorsList = authorsData.map(({authorId, note}) => `
+        <div class="author-note-item" data-author-id="${authorId}" style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;border:1px solid #ddd;position:relative;">
+            <div style="margin-bottom:8px;">
+                <a href="https://archiveofourown.org/users/${authorId}" target="_blank" style="color:#cbb974;font-weight:bold;">
+                    ${authorId}
+                </a>
+            </div>
+            <div style="font-size:0.95em;padding:8px;background:#44415a40;border-radius:4px;border-left:3px solid #cbb974;">
+                <div style="white-space:pre-wrap;">"${note.text}"</div>
+                ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
+            </div>
+            <button class="delete-author-note-btn" data-author-id="${authorId}" style="position:absolute;top:8px;right:8px;background:#f44336;color:white;border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:12px;">×</button>
+        </div>
+    `).join("");
+
+    content.querySelector('#authors-list').innerHTML = sortedAuthorsList;
+
+    // Re-attach delete button listeners
+    attachAuthorDeleteListeners();
+}
+
+// Add sort button listeners
+content.querySelector('#sort-author-date').addEventListener('click', () => sortAndDisplayAuthors('date'));
+content.querySelector('#sort-author-name').addEventListener('click', () => sortAndDisplayAuthors('name'));
+
+// Function to re-attach delete listeners (move the existing delete button code here)
+function attachAuthorDeleteListeners() {
+    const deleteButtons = content.querySelectorAll(".delete-author-note-btn");
+    deleteButtons.forEach((btn) => {
+        btn.addEventListener("mouseenter", () => {
+            btn.style.background = "#d32f2f";
+            btn.style.transform = "scale(1.1)";
+        });
+        btn.addEventListener("mouseleave", () => {
+            btn.style.background = "#f44336";
+            btn.style.transform = "scale(1)";
+        });
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const authorId = btn.dataset.authorId;
+            if (!confirm(`Delete note for author "${authorId}"?`)) return;
+
+            const authorNotes = Storage.loadAuthorNotes();
+            delete authorNotes[authorId];
+            Storage.saveAuthorNotes(authorNotes);
+
+            const noteItem = btn.closest(".author-note-item");
+            if (noteItem) {
+                noteItem.style.transition = "opacity 0.3s, transform 0.3s";
+                noteItem.style.opacity = "0";
+                noteItem.style.transform = "translateX(20px)";
+                setTimeout(() => {
+                    noteItem.remove();
+                    const remainingNotes = Object.keys(Storage.loadAuthorNotes());
+                    const countDisplay = content.querySelector("span");
+                    if (countDisplay) {
+                        const newCount = remainingNotes.length;
+                        countDisplay.textContent = `${newCount} author${newCount === 1 ? "" : "s"}`;
+                    }
+                    if (remainingNotes.length === 0) {
+                        setTimeout(() => content.querySelector("#back-to-tags").click(), 300);
+                    }
+                }, 300);
+            }
+        });
+    });
+}
+
+// Initial sort setup
+attachAuthorDeleteListeners();
+
+// ADD THIS LINE:
+sortAndDisplayAuthors('date'); // Initialize with date sort
 
         // Back button
 content.querySelector("#back-to-tags").addEventListener("click", () => {
@@ -1727,7 +1841,7 @@ function init() {
         processStoryPage();
     }
 // Process author pages
-    if (window.location.pathname.match(/\/users\/[^\/]+$/)) {
+    if (window.location.pathname.match(/\/users\/[^\/]+(?:\/pseuds\/[^\/]+)?\/?$/)) {
         processAuthorPage();
     }
 }
@@ -1860,7 +1974,7 @@ function processStoryPage() {
 }
 
 function processAuthorPage() {
-    const authorMatch = window.location.pathname.match(/\/users\/([^\/]+)/);
+    const authorMatch = window.location.pathname.match(/\/users\/([^\/]+)(?:\/pseuds\/[^\/]+)?\/?$/);
     if (!authorMatch) return;
 
     const authorId = authorMatch[1];
@@ -1869,29 +1983,48 @@ function processAuthorPage() {
     // Check if we already processed this page
     if (document.querySelector('.ao3-author-note')) return;
 
-    // Find where to insert the author note UI
-    const profileModule = document.querySelector('#main .profile .module') ||
-                         document.querySelector('#main .profile') ||
-                         document.querySelector('#main .wrapper');
+    // Try multiple insertion points (more robust)
+    const insertionPoints = [
+        '#main .profile .module',
+        '#main .profile',
+        '#main .user.profile',
+        '#main .wrapper',
+        '.profile.module',
+        '#main'
+    ];
 
-    if (!profileModule) return;
+    let insertionPoint = null;
+    for (const selector of insertionPoints) {
+        insertionPoint = document.querySelector(selector);
+        if (insertionPoint) {
+            console.log('Found insertion point:', selector);
+            break;
+        }
+    }
+
+    if (!insertionPoint) {
+        console.log('No suitable insertion point found for author notes');
+        return;
+    }
 
     // Create author note container
     const noteContainer = document.createElement('div');
     noteContainer.className = 'ao3-author-note';
     noteContainer.style.cssText = `
-        margin: 15px 0;
         padding: 15px;
-        border: 1px solid #cbb974;
-        border-radius: 6px;
-        background: #fefef9;
     `;
 
     const noteUI = createNoteUI(authorId, true);
     noteContainer.appendChild(noteUI);
 
-    // Insert at the top of the profile
-    profileModule.parentNode.insertBefore(noteContainer, profileModule);
+    // Insert at the top of the profile (or before the first child)
+    if (insertionPoint.firstChild) {
+        insertionPoint.insertBefore(noteContainer, insertionPoint.firstChild);
+    } else {
+        insertionPoint.appendChild(noteContainer);
+    }
+
+    console.log('Author note UI successfully added');
 }
 
   function extractWorkId(workElement) {
