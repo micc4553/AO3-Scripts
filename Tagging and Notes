@@ -1731,7 +1731,7 @@ if (ta.addEventListener) {
 
 // Initial resize with delay for older browsers
 autoResize();
-          
+
             container.appendChild(ta);
 
             const row = document.createElement("div");
@@ -1920,70 +1920,168 @@ wrapper.saveNote = function() {
         });
     }
 
-    function processStoryPage() {
-        const workMatch = window.location.pathname.match(/\/works\/(\d+)/);
-        if (!workMatch) return;
+function processStoryPage() {
+    const workMatch = window.location.pathname.match(/\/works\/(\d+)/);
+    if (!workMatch) return;
 
-        const workId = workMatch[1];
-        console.log('Processing story page for work:', workId);
+    const workId = workMatch[1];
+    console.log('Processing story page for work:', workId);
 
-        if (document.querySelector('.ao3-story-tagging')) return;
+    // Check if we already processed this page
+    if (document.querySelector('.ao3-story-tagging')) return;
 
-        const workMeta = document.querySelector('#workskin .preface') ||
-                        document.querySelector('.work.meta.group') ||
-                        document.querySelector('#main .wrapper');
+    // Find where to insert the tagging UI
+    const workMeta = document.querySelector('#workskin .preface') ||
+                    document.querySelector('.work.meta.group') ||
+                    document.querySelector('#main .wrapper');
 
-        if (!workMeta) {
-            console.log('Could not find insertion point for story page tagging');
-            return;
+    if (!workMeta) {
+        console.log('Could not find insertion point for story page tagging');
+        return;
+    }
+
+    // Load current tag status FIRST
+    const labels = Storage.loadLabels();
+    const currentTag = labels[workId];
+
+    // Create the tagging container
+    const tagContainer = document.createElement('div');
+    tagContainer.className = 'ao3-story-tagging';
+    tagContainer.style.cssText = `margin: 20px 0;`;
+
+    // Add current tag display if exists - THIS WAS MISSING PROPER REFRESH
+    if (currentTag) {
+        const tagDisplay = document.createElement('div');
+        tagDisplay.id = 'current-tag-display'; // Add ID for easy updates
+        tagDisplay.style.cssText = `
+            text-align: center; margin-bottom: 10px; font-weight: bold;
+            color: ${TAG_COLORS[currentTag].bg};
+        `;
+        tagDisplay.textContent = `Currently tagged: ${currentTag}`;
+        tagContainer.appendChild(tagDisplay);
+    }
+
+    // Add tag buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+        display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; justify-content: center;
+    `;
+
+    PRESET_TAGS.forEach(tag => {
+        const btn = document.createElement('button');
+        btn.textContent = tag;
+        btn.className = 'ao3-tag-btn';
+        btn.dataset.workId = workId;
+        btn.style.cssText = `
+            padding: 1px 6px; margin: 2px; border: 1px solid #ccc; border-radius: 4px;
+            background: #eee; color: #333; font-size: 0.9em; cursor: pointer; transition: all 0.2s;
+        `;
+
+        // Apply current tag styling IMMEDIATELY
+        if (currentTag === tag) {
+            btn.style.background = TAG_COLORS[tag].bg;
+            btn.style.color = TAG_COLORS[tag].text;
+            btn.style.border = `1px solid ${TAG_COLORS[tag].bg}`;
+            btn.style.fontWeight = 'bold';
         }
 
-        const tagContainer = document.createElement('div');
-        tagContainer.className = 'ao3-story-tagging';
-        tagContainer.style.cssText = 'margin: 20px 0;';
-
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; justify-content: center;';
-
-        const labels = Storage.loadLabels();
-        const currentTag = labels[workId];
-
-        PRESET_TAGS.forEach(tag => {
-            const btn = document.createElement('button');
-            btn.textContent = tag;
-            btn.className = 'ao3-tag-btn';
-            btn.dataset.workId = workId;
-            btn.style.cssText = `
-                padding: 1px 6px; margin: 2px; border: 1px solid #ccc; border-radius: 4px;
-                background: #fff; color: #333; font-size: 0.9em; cursor: pointer; transition: all 0.2s;
-            `;
-
-            if (currentTag === tag) {
-                btn.style.background = TAG_COLORS[tag].bg;
-                btn.style.color = TAG_COLORS[tag].text;
-                btn.style.border = `1px solid ${TAG_COLORS[tag].bg}`;
+        // Add hover effects
+        btn.addEventListener('mouseenter', () => {
+            if (currentTag !== tag) {
+                btn.style.background = '#f0f0f0';
             }
-
-            buttonContainer.appendChild(btn);
         });
 
-        if (currentTag) {
-            const tagDisplay = document.createElement('div');
-            tagDisplay.style.cssText = `
+        btn.addEventListener('mouseleave', () => {
+            if (currentTag !== tag) {
+                btn.style.background = '#eee';
+            }
+        });
+
+        // FIXED CLICK HANDLER - with immediate UI update
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Get current labels state
+            const currentLabels = Storage.loadLabels();
+            const wasTagged = currentLabels[workId] === tag;
+
+            // Toggle the tag
+            toggleWorkTag(workId, tag);
+
+            // Get new state after toggle
+            const newLabels = Storage.loadLabels();
+            const newCurrentTag = newLabels[workId];
+
+            console.log(`Tag toggle: ${tag}, was tagged: ${wasTagged}, new tag: ${newCurrentTag}`);
+
+            // Update UI immediately without full page refresh
+            updateStoryPageTagging(workId, newCurrentTag);
+        });
+
+        buttonContainer.appendChild(btn);
+    });
+
+    tagContainer.appendChild(buttonContainer);
+
+    // Add note UI
+    const noteUI = createNoteUI(workId, false);
+    tagContainer.appendChild(noteUI);
+
+    // Insert before work meta information
+    workMeta.parentNode.insertBefore(tagContainer, workMeta);
+}
+
+// NEW HELPER FUNCTION for immediate UI updates
+function updateStoryPageTagging(workId, currentTag) {
+    const tagDisplay = document.getElementById('current-tag-display');
+    const buttons = document.querySelectorAll('.ao3-tag-btn[data-work-id="' + workId + '"]');
+
+    // Update tag display
+    if (currentTag) {
+        if (tagDisplay) {
+            tagDisplay.textContent = `Currently tagged: ${currentTag}`;
+            tagDisplay.style.color = TAG_COLORS[currentTag].bg;
+        } else {
+            // Create new display if it didn't exist
+            const container = document.querySelector('.ao3-story-tagging');
+            const buttonContainer = container.querySelector('div[style*="display: flex"]');
+
+            const newDisplay = document.createElement('div');
+            newDisplay.id = 'current-tag-display';
+            newDisplay.style.cssText = `
                 text-align: center; margin-bottom: 10px; font-weight: bold;
                 color: ${TAG_COLORS[currentTag].bg};
             `;
-            tagDisplay.textContent = `Current Tag: ${currentTag}`;
-            tagContainer.appendChild(tagDisplay);
+            newDisplay.textContent = `Currently tagged: ${currentTag}`;
+            container.insertBefore(newDisplay, buttonContainer);
         }
-
-        tagContainer.appendChild(buttonContainer);
-
-        const noteUI = createNoteUI(workId, false);
-        tagContainer.appendChild(noteUI);
-
-        workMeta.parentNode.insertBefore(tagContainer, workMeta);
+    } else {
+        // Remove display if no tag
+        if (tagDisplay) {
+            tagDisplay.remove();
+        }
     }
+
+    // Update all buttons
+    buttons.forEach(btn => {
+        const btnTag = btn.textContent;
+        if (currentTag === btnTag) {
+            // This button is now active
+            btn.style.background = TAG_COLORS[btnTag].bg;
+            btn.style.color = TAG_COLORS[btnTag].text;
+            btn.style.border = `1px solid ${TAG_COLORS[btnTag].bg}`;
+            btn.style.fontWeight = 'bold';
+        } else {
+            // Reset inactive buttons
+            btn.style.background = '#eee';
+            btn.style.color = '#333';
+            btn.style.border = '1px solid #ccc';
+            btn.style.fontWeight = 'normal';
+        }
+    });
+}
 
     function processAuthorPage() {
         const authorMatch = window.location.pathname.match(/\/users\/([^\/]+)(?:\/pseuds\/[^\/]+)?\/?$/);
@@ -2082,10 +2180,9 @@ wrapper.saveNote = function() {
             btn.className = 'ao3-tag-btn';
             btn.dataset.workId = workId;
             btn.style.cssText = `
-                padding: 1px 6px; margin: 0 2px; border: 1px solid #ccc;
-                border-radius: 3px; background: #eee; color: #333;
-                font-size: 0.8em; cursor: pointer; transition: all 0.2s;
-            `;
+    padding: 1px 6px; margin: 2px; border: 1px solid #ccc; border-radius: 4px;
+    background: #eee; color: #333; font-size: 0.9em; cursor: pointer; transition: all 0.2s;
+`;
 
             if (currentTag === tag) {
                 btn.style.background = TAG_COLORS[tag].bg;
@@ -2120,45 +2217,70 @@ wrapper.saveNote = function() {
         }
     }
 
-    function toggleWorkTag(workId, tag) {
-        const labels = Storage.loadLabels();
+function toggleWorkTag(workId, tag) {
+    console.log(`toggleWorkTag called: workId=${workId}, tag=${tag}`);
 
-        if (labels[workId] === tag) {
-            delete labels[workId];
-        } else {
-            labels[workId] = tag;
-        }
+    const labels = Storage.loadLabels();
+    const currentTag = labels[workId];
 
-        Storage.saveLabels(labels);
+    console.log(`Current tag before toggle: ${currentTag}`);
+
+    if (currentTag === tag) {
+        // Remove tag if clicking the same tag
+        delete labels[workId];
+        console.log(`Removed tag ${tag} from work ${workId}`);
+    } else {
+        // Set new tag (or replace existing different tag)
+        labels[workId] = tag;
+        console.log(`Set tag ${tag} for work ${workId}`);
     }
+
+    // Save immediately
+    Storage.saveLabels(labels);
+
+    // Verify save worked
+    const savedLabels = Storage.loadLabels();
+    const newTag = savedLabels[workId];
+    console.log(`Tag after save: ${newTag}`);
+
+    return newTag; // Return the new tag state for use by caller
+}
 
 function applyWorkStyling(work, workId) {
     const labels = Storage.loadLabels();
     const currentTag = labels[workId];
 
+    // ALWAYS reset styling first, regardless of tag
+    work.style.border = '';
+    work.style.boxShadow = '';
+    work.style.borderRadius = '';
+    work.style.opacity = '1.0';
+    work.classList.remove('work-collapsed', 'work-expanded');
+
+    // ALWAYS show all elements first (critical fix!)
+    const elementsToShow = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
+    elementsToShow.forEach(el => {
+        el.style.display = "";
+        el.classList.remove('collapsible-content');
+    });
+
+    // Remove ALL toggle functionality first
+    const toggleElements = work.querySelectorAll('.work-toggle');
+    toggleElements.forEach(el => {
+        el.classList.remove('work-toggle');
+        el.style.cursor = '';
+    });
+
+    // Remove toggle from work itself
+    work.classList.remove('work-toggle');
+    work.style.cursor = '';
+
+    // If no tag, we're done - everything stays expanded
     if (!currentTag) {
-        work.style.border = '';
-        work.style.boxShadow = '';
-        work.style.borderRadius = '';
-        work.style.opacity = '1.0';
-        work.classList.remove('work-collapsed', 'work-expanded');
-
-        const elementsToShow = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
-        elementsToShow.forEach(el => {
-            el.style.display = "";
-            el.classList.remove('collapsible-content');
-        });
-
-        // Remove toggle functionality
-        const toggleElements = work.querySelectorAll('.work-toggle');
-        toggleElements.forEach(el => {
-            el.classList.remove('work-toggle');
-            el.style.cursor = '';
-        });
         return;
     }
 
-    // Apply border highlighting
+    // Apply border highlighting for border tags
     if (BORDER_TAGS.includes(currentTag)) {
         const color = TAG_COLORS[currentTag]?.bg || "#000";
         work.style.border = `2px solid ${color}`;
@@ -2166,7 +2288,7 @@ function applyWorkStyling(work, workId) {
         work.style.borderRadius = "6px";
     }
 
-    // Apply collapsing with toggle functionality
+    // ONLY apply collapsing if it's a collapse tag
     const shouldCollapse = COLLAPSE_TAGS.includes(currentTag);
     if (shouldCollapse) {
         // Mark collapsible content
@@ -2175,13 +2297,12 @@ function applyWorkStyling(work, workId) {
             el.classList.add('collapsible-content');
         });
 
-// Make the whole work clickable for toggle
-work.classList.add('work-toggle');
-work.style.cursor = 'pointer';
+        // Make the whole work clickable for toggle
+        work.classList.add('work-toggle');
+        work.style.cursor = 'pointer';
 
         // Set initial collapsed state
         work.classList.add('work-collapsed');
-        work.classList.remove('work-expanded');
         work.style.opacity = "0.6";
 
         // Store original display values if not already stored
@@ -2191,23 +2312,13 @@ work.style.cursor = 'pointer';
             });
             work.dataset.originalDisplayStored = 'true';
         }
-    } else {
-        // Remove collapse classes and toggle functionality for non-collapsible tags
-        work.classList.remove('work-collapsed', 'work-expanded');
-        work.style.opacity = "1.0";
 
-        const toggleElements = work.querySelectorAll('.work-toggle');
-        toggleElements.forEach(el => {
-            el.classList.remove('work-toggle');
-            el.style.cursor = '';
-        });
-
-        const elementsToShow = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
-        elementsToShow.forEach(el => {
-            el.style.display = el.dataset.originalDisplay || "";
-            el.classList.remove('collapsible-content');
+        // Actually hide the elements
+        elementsToHide.forEach(el => {
+            el.style.display = "none";
         });
     }
+    // For non-collapse tags, everything stays expanded (already handled above)
 }
 
 // Add this function to handle the toggle click
