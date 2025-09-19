@@ -5,6 +5,8 @@
 // @author       You
 // @match        https://archiveofourown.org/works/*
 // @match        https://archiveofourown.org/chapters/*
+// @updateURL    https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Word%20Replacer
+// @downloadURL  https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Word%20Replacer
 // @grant        none
 // ==/UserScript==
 
