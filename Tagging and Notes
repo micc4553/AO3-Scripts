@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.2.3
+// @version      8.2.5
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -109,12 +109,12 @@
     };
 
     // Inject global styles once
-    function injectGlobalStyles() {
-        if (document.getElementById('ao3-global-styles')) return;
+function injectGlobalStyles() {
+    if (document.getElementById('ao3-global-styles')) return;
 
-        const style = document.createElement("style");
-        style.id = 'ao3-global-styles';
-        style.textContent = `
+    const style = document.createElement("style");
+    style.id = 'ao3-global-styles';
+    style.textContent = `
 .fic-item {
     transition: border 0.2s, box-shadow 0.2s;
     border-left: 4px solid #666 !important;
@@ -124,14 +124,32 @@
     border-left: 4px solid #c4a7e7 !important;
     box-shadow: 0 0 0 1px #c4a7e7;
 }
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
 
+.work-collapsed .work-toggle {
+    cursor: pointer;
+    position: relative;
+}
+
+.work-expanded .work-toggle {
+    cursor: pointer;
+    position: relative;
+}
+
+.work-collapsed .collapsible-content {
+    display: none !important;
+}
+
+.work-expanded .collapsible-content {
+    display: block !important;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+    `;
+    document.head.appendChild(style);
+}
     // Event Delegation Manager for Tag Browser Modal
     class TagBrowserEventManager {
         constructor(modal) {
@@ -936,16 +954,28 @@ selectNew() {
             document.body.addEventListener("mouseleave", this.handleWorkLeave.bind(this), true);
         }
 
-        handleWorkClick(e) {
-            const target = e.target;
+handleWorkClick(e) {
+    const target = e.target;
 
-            // Tag buttons on work items
-            if (target.matches('.ao3-tag-btn')) {
-                e.stopPropagation();
-                const workId = target.dataset.workId;
-                const tag = target.textContent;
-                this.handleTagButtonClick(workId, tag, target);
-            }
+    // Toggle collapsed works - only if not clicking on links/buttons
+    if (target.closest('.work-collapsed, .work-expanded') &&
+        !target.closest('a, button, .ao3-tag-btn')) {
+        const work = target.closest('li.work.blurb, .work.blurb');
+        if (work) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWorkCollapse(work);
+            return;
+        }
+    }
+
+    // Tag buttons on work items
+    else if (target.matches('.ao3-tag-btn')) {
+        e.stopPropagation();
+        const workId = target.dataset.workId;
+        const tag = target.textContent;
+        this.handleTagButtonClick(workId, tag, target);
+    }
 
             // Note save/cancel buttons
             else if (target.matches('.note-save-btn')) {
@@ -1585,7 +1615,7 @@ Storage.saveDownloadHistory(downloadHistory);
         }
 
         finalizeDownloads() {
-            
+
             this.progressModal?.remove();
             this.progressModal = null;
             this.isDownloading = false;
@@ -1683,9 +1713,25 @@ Storage.saveDownloadHistory(downloadHistory);
                 ta.style.height = ta.scrollHeight + 'px';
             }
 
-            ta.addEventListener('input', autoResize);
-            setTimeout(autoResize, 0);
+// Use older event handling for better compatibility
+if (ta.addEventListener) {
+    ta.addEventListener('input', autoResize);
+    ta.addEventListener('keyup', autoResize);
+    ta.addEventListener('paste', function() {
+        setTimeout(autoResize, 0);
+    });
+} else if (ta.attachEvent) {
+    // IE8 and older
+    ta.attachEvent('onpropertychange', autoResize);
+    ta.attachEvent('onkeyup', autoResize);
+    ta.attachEvent('onpaste', function() {
+        setTimeout(autoResize, 0);
+    });
+}
 
+// Initial resize with delay for older browsers
+autoResize();
+          
             container.appendChild(ta);
 
             const row = document.createElement("div");
@@ -1707,23 +1753,26 @@ Storage.saveDownloadHistory(downloadHistory);
         }
 
         wrapper.showEditor = showEditor;
-        wrapper.saveNote = function() {
-            const textarea = this.querySelector("textarea");
-            const text = textarea.value.trim();
+wrapper.saveNote = function() {
+    const textarea = this.querySelector("textarea");
+    const text = textarea.value.trim();
 
-            if (!text) {
-                showAddButton();
-                return;
-            }
+    if (!text) {
+        showAddButton();
+        return;
+    }
 
-            const notes = isAuthor ? Storage.loadAuthorNotes() : Storage.loadNotes();
-            notes[id] = { text, date: UI.formatDateTime(new Date()) };
+    const notes = isAuthor ? Storage.loadAuthorNotes() : Storage.loadNotes();
 
-            if (isAuthor) Storage.saveAuthorNotes(notes);
-            else Storage.saveNotes(notes);
+    // Keep existing timestamp if note exists, create new one if it doesn't
+    const timestamp = notes[id] && notes[id].date ? notes[id].date : UI.formatDateTime(new Date());
+    notes[id] = { text, date: timestamp };
 
-            showNote(notes[id]);
-        };
+    if (isAuthor) Storage.saveAuthorNotes(notes);
+    else Storage.saveNotes(notes);
+
+    showNote(notes[id]);
+};
 
         wrapper.cancelEdit = function() {
             const notes = isAuthor ? Storage.loadAuthorNotes() : Storage.loadNotes();
@@ -2083,37 +2132,110 @@ Storage.saveDownloadHistory(downloadHistory);
         Storage.saveLabels(labels);
     }
 
-    function applyWorkStyling(work, workId) {
-        const labels = Storage.loadLabels();
-        const currentTag = labels[workId];
+function applyWorkStyling(work, workId) {
+    const labels = Storage.loadLabels();
+    const currentTag = labels[workId];
 
-        if (!currentTag) {
-            work.style.border = '';
-            work.style.boxShadow = '';
-            work.style.borderRadius = '';
-            work.style.opacity = '1.0';
+    if (!currentTag) {
+        work.style.border = '';
+        work.style.boxShadow = '';
+        work.style.borderRadius = '';
+        work.style.opacity = '1.0';
+        work.classList.remove('work-collapsed', 'work-expanded');
 
-            const elementsToShow = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
-            elementsToShow.forEach(el => el.style.display = "");
-            return;
-        }
+        const elementsToShow = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
+        elementsToShow.forEach(el => {
+            el.style.display = "";
+            el.classList.remove('collapsible-content');
+        });
 
-        // Apply border highlighting
-        if (BORDER_TAGS.includes(currentTag)) {
-            const color = TAG_COLORS[currentTag]?.bg || "#000";
-            work.style.border = `2px solid ${color}`;
-            work.style.boxShadow = `0 0 8px 2px ${color}55`;
-            work.style.borderRadius = "6px";
-        }
-
-        // Apply collapsing
-        const shouldCollapse = COLLAPSE_TAGS.includes(currentTag);
-        if (shouldCollapse) {
-            const elementsToHide = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
-            elementsToHide.forEach(el => el.style.display = "none");
-            work.style.opacity = "0.6";
-        }
+        // Remove toggle functionality
+        const toggleElements = work.querySelectorAll('.work-toggle');
+        toggleElements.forEach(el => {
+            el.classList.remove('work-toggle');
+            el.style.cursor = '';
+        });
+        return;
     }
+
+    // Apply border highlighting
+    if (BORDER_TAGS.includes(currentTag)) {
+        const color = TAG_COLORS[currentTag]?.bg || "#000";
+        work.style.border = `2px solid ${color}`;
+        work.style.boxShadow = `0 0 8px 2px ${color}55`;
+        work.style.borderRadius = "6px";
+    }
+
+    // Apply collapsing with toggle functionality
+    const shouldCollapse = COLLAPSE_TAGS.includes(currentTag);
+    if (shouldCollapse) {
+        // Mark collapsible content
+        const elementsToHide = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
+        elementsToHide.forEach(el => {
+            el.classList.add('collapsible-content');
+        });
+
+// Make the whole work clickable for toggle
+work.classList.add('work-toggle');
+work.style.cursor = 'pointer';
+
+        // Set initial collapsed state
+        work.classList.add('work-collapsed');
+        work.classList.remove('work-expanded');
+        work.style.opacity = "0.6";
+
+        // Store original display values if not already stored
+        if (!work.dataset.originalDisplayStored) {
+            elementsToHide.forEach(el => {
+                el.dataset.originalDisplay = el.style.display || getComputedStyle(el).display;
+            });
+            work.dataset.originalDisplayStored = 'true';
+        }
+    } else {
+        // Remove collapse classes and toggle functionality for non-collapsible tags
+        work.classList.remove('work-collapsed', 'work-expanded');
+        work.style.opacity = "1.0";
+
+        const toggleElements = work.querySelectorAll('.work-toggle');
+        toggleElements.forEach(el => {
+            el.classList.remove('work-toggle');
+            el.style.cursor = '';
+        });
+
+        const elementsToShow = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
+        elementsToShow.forEach(el => {
+            el.style.display = el.dataset.originalDisplay || "";
+            el.classList.remove('collapsible-content');
+        });
+    }
+}
+
+// Add this function to handle the toggle click
+function toggleWorkCollapse(work) {
+    const isCollapsed = work.classList.contains('work-collapsed');
+
+    if (isCollapsed) {
+        // Expand
+        work.classList.remove('work-collapsed');
+        work.classList.add('work-expanded');
+        work.style.opacity = "1.0";
+
+        const collapsibleElements = work.querySelectorAll('.collapsible-content');
+        collapsibleElements.forEach(el => {
+            el.style.display = el.dataset.originalDisplay || "";
+        });
+    } else {
+        // Collapse
+        work.classList.remove('work-expanded');
+        work.classList.add('work-collapsed');
+        work.style.opacity = "0.6";
+
+        const collapsibleElements = work.querySelectorAll('.collapsible-content');
+        collapsibleElements.forEach(el => {
+            el.style.display = "none";
+        });
+    }
+}
 
     // Initialize managers
     const downloadManager = new MassDownloadManager();
