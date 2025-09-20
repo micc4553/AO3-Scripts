@@ -1083,9 +1083,20 @@ handleWorkClick(e) {
     // Metadata Cache Manager (using your clean version)
     class MetadataCache {
         static get(workId) {
-            const cache = Storage.loadMetadataCache();
-            return cache[workId] || null;
+    const cache = Storage.loadMetadataCache();
+    const cached = cache[workId];
+    if (cached && Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+        // Validate cached data has required properties
+        if (cached.data && cached.data.title && cached.data.author) {
+            return cached.data;
+        } else {
+            // Remove corrupted cache entry
+            delete cache[workId];
+            Storage.saveMetadataCache(cache);
         }
+    }
+    return null;
+}
 
         static set(workId, data) {
             const cache = Storage.loadMetadataCache();
