@@ -18,6 +18,7 @@
         NOTES: "ao3_fic_notes",
         AUTHOR_NOTES: "ao3_author_notes",
         DELETED_AUTHOR_NOTES: "ao3_deleted_author_notes",
+        DELETED_NOTES: "ao3_deleted_notes",
         LAST_DOWNLOAD: "ao3_last_download",
         DOWNLOADED_WORKS: "ao3_downloaded_works",
         METADATA_CACHE: "ao3_metadata_cache"
@@ -60,12 +61,11 @@
         static saveDownloadHistory(v) { this.save(KEYS.DOWNLOADED_WORKS, v); }
         static loadMetadataCache() { return this.load(KEYS.METADATA_CACHE); }
         static saveMetadataCache(v) { this.save(KEYS.METADATA_CACHE, v); }
-        static loadDeletedAuthorNotes() { return this.load(KEYS.DELETED_AUTHOR_NOTES); }
+        static loadDeletedAuthorNotes() { return this.load(KEYS.DELETED_AUTHOR_NOTES, {}); }
         static saveDeletedAuthorNotes(v) { this.save(KEYS.DELETED_AUTHOR_NOTES, v); }
-      static loadDeletedNotes() { return this.load('ao3_deleted_notes', {}); }
-static saveDeletedNotes(v) { this.save('ao3_deleted_notes', v); }
-static loadDeletedAuthorNotes() { return this.load('ao3_deleted_author_notes', {}); }
-static saveDeletedAuthorNotes(v) { this.save('ao3_deleted_author_notes', v); }
+      static loadDeletedNotes() { return this.load(KEYS.DELETED_NOTES, {}); }
+static saveDeletedNotes(v) { this.save(KEYS.DELETED_NOTES, v); }
+
     }
 
     // UI Utilities - Consolidated
@@ -366,11 +366,8 @@ if (target.matches(".download-tag-btn") || target.closest(".download-tag-btn")) 
             const authorNotes = Storage.loadAuthorNotes();
             const deletedAuthorNotes = Storage.loadDeletedAuthorNotes();
 
-            deletedAuthorNotes[authorId] = {
-                note: authorNotes[authorId],
-                deletedAt: Date.now(),
-                reason: 'Deleted by user'
-            };
+            deletedAuthorNotes[authorId] = Date.now();
+
             Storage.saveDeletedAuthorNotes(deletedAuthorNotes);
 
             delete authorNotes[authorId];
