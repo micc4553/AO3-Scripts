@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.3
+// @version      8.3.1
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -62,6 +62,10 @@
         static saveMetadataCache(v) { this.save(KEYS.METADATA_CACHE, v); }
         static loadDeletedAuthorNotes() { return this.load(KEYS.DELETED_AUTHOR_NOTES); }
         static saveDeletedAuthorNotes(v) { this.save(KEYS.DELETED_AUTHOR_NOTES, v); }
+      static loadDeletedNotes() { return this.load('ao3_deleted_notes', {}); }
+static saveDeletedNotes(v) { this.save('ao3_deleted_notes', v); }
+static loadDeletedAuthorNotes() { return this.load('ao3_deleted_author_notes', {}); }
+static saveDeletedAuthorNotes(v) { this.save('ao3_deleted_author_notes', v); }
     }
 
     // UI Utilities - Consolidated
@@ -1875,17 +1879,28 @@ wrapper.saveNote = function() {
             else showAddButton();
         };
 
-        wrapper.deleteNote = function() {
-            if (!confirm(isAuthor ? "Delete this author note?" : "Delete this note?")) return;
+wrapper.deleteNote = function() {
+    if (!confirm(isAuthor ? "Delete this author note?" : "Delete this note?")) return;
 
-            const notes = isAuthor ? Storage.loadAuthorNotes() : Storage.loadNotes();
-            delete notes[id];
+    const notes = isAuthor ? Storage.loadAuthorNotes() : Storage.loadNotes();
+    delete notes[id];
 
-            if (isAuthor) Storage.saveAuthorNotes(notes);
-            else Storage.saveNotes(notes);
+    if (isAuthor) {
+        Storage.saveAuthorNotes(notes);
+        // Track deletion for sync
+        const deletedAuthorNotes = Storage.loadDeletedAuthorNotes();
+        deletedAuthorNotes[id] = Date.now();
+        Storage.saveDeletedAuthorNotes(deletedAuthorNotes);
+    } else {
+        Storage.saveNotes(notes);
+        // Track deletion for sync
+        const deletedNotes = Storage.loadDeletedNotes();
+        deletedNotes[id] = Date.now();
+        Storage.saveDeletedNotes(deletedNotes);
+    }
 
-            showAddButton();
-        };
+    showAddButton();
+};
 
         if (data) showNote(data);
         else showAddButton();
