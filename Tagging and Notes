@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.2.7
+// @version      8.2.8
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -1992,11 +1992,16 @@ function processStoryPage() {
             }
         });
 
-        btn.addEventListener('mouseleave', () => {
-            if (currentTag !== tag) {
-                btn.style.background = '#eee';
-            }
-        });
+btn.addEventListener('mouseleave', () => {
+    const labels = Storage.loadLabels();
+    const activeTag = labels[workId];
+    if (activeTag !== tag) {
+        btn.style.background = '#eee';
+    } else {
+        btn.style.background = TAG_COLORS[tag].bg;
+        btn.style.color = TAG_COLORS[tag].text;
+    }
+});
 
         // FIXED CLICK HANDLER - with immediate UI update
         btn.addEventListener('click', (e) => {
