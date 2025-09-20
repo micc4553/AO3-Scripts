@@ -1415,27 +1415,30 @@ handleWorkClick(e) {
                     </div>
                 `);
 
-                const workData = await Promise.all(
-                    allIds.map(async (ficId) => {
-                        try {
-                            const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
-                            const metadata = await MetadataCache.fetchWorkMetadata(workId);
-                            const notes = Storage.loadNotes();
+// Fetch metadata for all works with rate limiting
+const workData = [];
+for (let i = 0; i < allIds.length; i++) {
+    const ficId = allIds[i];
+    const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
 
-                            return {
-                                ficId,
-                                workId,
-                                metadata,
-                                note: notes[ficId],
-                            };
-                        } catch (error) {
-                            console.error("Error fetching metadata for", ficId, error);
-                            return {
-                                ficId,
-                                workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
-                                metadata: { title: `Work ${ficId}`, author: 'Unknown' },
-                                note: null,
-                            };
+    try {
+        const metadata = await MetadataCache.fetchWorkMetadata(workId);
+        workData.push({ ficId, workId, metadata });
+
+        // Add delay between requests to avoid rate limiting
+        if (i < allIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+        }
+    } catch (error) {
+        console.error(`Failed to fetch metadata for ${workId}:`, error);
+        workData.push({
+            ficId,
+            workId,
+            metadata: { title: `Work_${workId}`, author: 'Unknown_Author' }
+        });
+    }
+}
+
                         }
                     })
                 );
