@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.2.9
+// @version      8.3
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -107,6 +107,15 @@
             return modal;
         }
     };
+
+  function normalizeWorkId(input) {
+    if (typeof input === 'string') {
+        let cleaned = input.replace("bookmark_", "");
+        const match = cleaned.match(/(\d+)/);
+        return match ? match[1] : null;
+    }
+    return null;
+}
 
     // Inject global styles once
 function injectGlobalStyles() {
@@ -691,7 +700,7 @@ updateWorksDisplay() {
 this.workData = await Promise.all(
     works.map(async (ficId) => {
         try {
-            const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
+            const workId = normalizeWorkId(ficId);
             const metadata = await MetadataCache.fetchWorkMetadata(workId);
 
             // Only fetch summary if this is the "To Read" tag
@@ -711,7 +720,7 @@ this.workData = await Promise.all(
             console.error("Error fetching metadata for", ficId, error);
             return {
                 ficId,
-                workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
+                workId: normalizeWorkId(ficId),
                 metadata: { title: `Work ${ficId}`, author: 'Unknown' },
                 note: notes[ficId],
                 summary: ''
@@ -1003,15 +1012,15 @@ handleWorkClick(e) {
 
     // Toggle collapsed works - only if not clicking on links/buttons
     if (target.closest('.work-collapsed, .work-expanded') &&
-        !target.closest('a, button, .ao3-tag-btn')) {
-        const work = target.closest('li.work.blurb, .work.blurb');
-        if (work) {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleWorkCollapse(work);
-            return;
-        }
+    !target.closest('a, button, .ao3-tag-btn')) {
+    const work = target.closest('li.work.blurb, .work.blurb, li.bookmark.blurb');  // Add bookmark support
+    if (work) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleWorkCollapse(work);
+        return;
     }
+}
 
     // Tag buttons on work items
     else if (target.matches('.ao3-tag-btn')) {
@@ -1068,15 +1077,21 @@ handleWorkClick(e) {
             }
         }
 
-        handleTagButtonClick(workId, tag, button) {
-            toggleWorkTag(workId, tag);
+handleTagButtonClick(workId, tag, button) {
+    // Find the work element FIRST
+    const work = button.closest('li.work.blurb, .work.blurb, li.bookmark.blurb');
 
-            // Find the work element and refresh its tagging
-            const work = button.closest('li.work.blurb, .work.blurb');
-            if (work) {
-                this.refreshWorkTagging(work, workId);
-            }
-        }
+    // Then add the debug logging
+    console.log('Tag clicked, work element:', work);
+    console.log('Work classes:', work.className);
+
+    toggleWorkTag(workId, tag);
+
+    // Find the work element and refresh its tagging
+    if (work) {
+        this.refreshWorkTagging(work, workId);
+    }
+}
 
         handleNoteSave(container) {
             if (container && container.saveNote) {
@@ -1514,7 +1529,7 @@ async function fetchWorkSummary(workId) {
 // Fetch metadata for all works
 const workData = await Promise.all(
     allIds.map(async (ficId) => {
-        const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
+        const workId = normalizeWorkId(ficId);
         const metadata = await MetadataCache.fetchWorkMetadata(workId);
         return { ficId, workId, metadata };
     })
@@ -1645,7 +1660,7 @@ const worksList = workData.map(({ ficId, workId, metadata }) => {
         }
 
         async downloadFic(ficId) {
-            const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
+            const workId = normalizeWorkId(ficId);
 
             const metadata = await MetadataCache.fetchWorkMetadata(workId);
             const htmlContent = await this.fetchWorkContent(workId);
@@ -1987,7 +2002,7 @@ wrapper.saveNote = function() {
 
     // Work processing functions
     function processWorksOnPage() {
-        const workBlurbs = document.querySelectorAll('li.work.blurb, .work.blurb');
+            const workBlurbs = document.querySelectorAll('li.work.blurb, .work.blurb, li.bookmark.blurb');
         workBlurbs.forEach(work => {
             if (work.dataset.processed) return;
             work.dataset.processed = 'true';
@@ -2223,15 +2238,53 @@ function updateStoryPageTagging(workId, currentTag) {
         console.log('Author note UI successfully added');
     }
 
-    function extractWorkId(workElement) {
-        const link = workElement.querySelector('h4.heading a[href*="/works/"]');
-        if (link) {
-            const match = link.href.match(/\/works\/(\d+)/);
-            if (match) return match[1];
+function processSubscriptionPage() {
+    // Find all author links in dt elements
+    const authorLinks = document.querySelectorAll('dt a[href*="/users/"]');
+
+    authorLinks.forEach(link => {
+        if (link.dataset.processed) return;
+        link.dataset.processed = 'true';
+
+        // Extract author name from the link
+        const authorMatch = link.href.match(/\/users\/([^\/]+)/);
+        if (authorMatch) {
+            const authorId = authorMatch[1];
+            addAuthorNoteToSubscription(link, authorId);
         }
-        return null;
+    });
+}
+
+function addAuthorNoteToSubscription(authorLink, authorId) {
+    const authorNotes = Storage.loadAuthorNotes();
+    const note = authorNotes[authorId];
+
+    if (note) {
+        const noteSpan = document.createElement('span');
+        noteSpan.style.cssText = 'margin-left: 8px; font-size: 0.9em; font-style: italic;';
+        noteSpan.textContent = `(Author Note: ${note.text})`;
+
+        // Insert after the author link
+        authorLink.parentNode.insertBefore(noteSpan, authorLink.nextSibling);
+    }
+}
+
+  function extractWorkId(workElement) {
+    // First try the existing method for regular work pages
+    const link = workElement.querySelector('h4.heading a[href*="/works/"]');
+    if (link) {
+        const match = link.href.match(/\/works\/(\d+)/);
+        if (match) return match[1];
     }
 
+    // For bookmark pages, extract from class name
+    if (workElement.classList.contains('bookmark')) {
+        const classMatch = workElement.className.match(/work-(\d+)/);
+        if (classMatch) return classMatch[1];
+    }
+
+    return null;
+}
     function addCompleteTagging(work, workId) {
         const labels = Storage.loadLabels();
         const currentTag = labels[workId];
@@ -2380,11 +2433,18 @@ function applyWorkStyling(work, workId) {
         work.style.borderRadius = "6px";
     }
 
-    // ONLY apply collapsing if it's a collapse tag
-    const shouldCollapse = COLLAPSE_TAGS.includes(currentTag);
-    if (shouldCollapse) {
-        // Mark collapsible content
-        const elementsToHide = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
+// ONLY apply collapsing if it's a collapse tag
+const shouldCollapse = COLLAPSE_TAGS.includes(currentTag);
+if (shouldCollapse) {
+    // Mark collapsible content - exclude bookmarker's section on bookmark pages
+    let elementsToHide;
+    if (work.classList.contains('bookmark')) {
+        // On bookmark pages, exclude the bookmarker's own notes section
+        elementsToHide = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote:not(.own .notes),.series,.collections");
+    } else {
+        // Regular work pages collapse everything as before
+        elementsToHide = work.querySelectorAll(".tags,.summary,.stats,.fandoms,blockquote,.series,.collections");
+    }
         elementsToHide.forEach(el => {
             el.classList.add('collapsible-content');
         });
@@ -2467,6 +2527,10 @@ function toggleWorkCollapse(work) {
         if (window.location.pathname.match(/\/users\/[^\/]+(?:\/pseuds\/[^\/]+)?\/?$/)) {
             processAuthorPage();
         }
+      // In your init() function, add this check:
+if (window.location.pathname.match(/\/users\/[^\/]+\/subscriptions/)) {
+    processSubscriptionPage();
+}
     }
 
     // Run initialization
