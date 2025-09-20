@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 Personal Tags
 // @version      1.2.1
-// @description  Add personal tags to AO3 works with customizable links
+// @description  Add personal tags to AO3 works with customizable links (Firefox 115 ESR Compatible)
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
 // @updateURL    https://raw.githubusercontent.com/micc4553/AO3-Scripts/refs/heads/main/Personal%20Tags
@@ -86,8 +86,7 @@
         tagLookup[normalizedTag][workInfo.id] = {
             title: workInfo.title,
             author: workInfo.author,
-            summary: workInfo.summary || '',
-            originalTag: tag
+            summary: workInfo.summary || ''
         };
         saveTagLookup(tagLookup);
     }
@@ -189,7 +188,7 @@
         });
 
         input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' || e.keyCode === 13) {
                 saveButton.click();
             }
         });
@@ -235,10 +234,9 @@
         function getAllUsedTags() {
             var allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
             var tagsArray = [];
-            var workTags, i, j;
             for (var workId in allTags) {
-                workTags = allTags[workId];
-                for (i = 0; i < workTags.length; i++) {
+                var workTags = allTags[workId];
+                for (var i = 0; i < workTags.length; i++) {
                     if (tagsArray.indexOf(workTags[i]) === -1) {
                         tagsArray.push(workTags[i]);
                     }
@@ -266,7 +264,7 @@
             var buttons = tagsDisplay.querySelectorAll('button');
             for (var i = 0; i < buttons.length; i++) {
                 buttons[i].addEventListener('click', function() {
-                    var tagToDelete = this.dataset.tag;
+                    var tagToDelete = this.getAttribute('data-tag');
                     var currentTags = getPersonalTags(workInfo.id);
                     var newTags = [];
                     for (var j = 0; j < currentTags.length; j++) {
@@ -302,7 +300,8 @@
         var selectedIndex = -1;
 
         tagInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
+            var key = e.key || String.fromCharCode(e.keyCode);
+            if (key === 'Enter' || e.keyCode === 13) {
                 e.preventDefault();
                 var suggestions = suggestionBox.querySelectorAll('.suggestion-item');
                 if (selectedIndex >= 0 && suggestions[selectedIndex]) {
@@ -332,7 +331,7 @@
                     var item = document.createElement('div');
                     item.textContent = filteredTags[i];
                     item.className = 'suggestion-item';
-                    item.dataset.index = i;
+                    item.setAttribute('data-index', i);
                     item.style.cssText = 'padding: 5px 10px; cursor: pointer;';
 
                     item.addEventListener('mouseover', function() {
@@ -341,7 +340,7 @@
                             suggestions[j].style.background = '#2A273F';
                         }
                         this.style.background = '#46446C';
-                        selectedIndex = parseInt(this.dataset.index);
+                        selectedIndex = parseInt(this.getAttribute('data-index'));
                     });
 
                     item.addEventListener('mouseleave', function() {
@@ -377,18 +376,18 @@
 
         tagInput.addEventListener('keydown', function(e) {
             var suggestions = suggestionBox.querySelectorAll('.suggestion-item');
-
             if (suggestions.length === 0) return;
 
-            if (e.key === 'ArrowDown') {
+            var key = e.key || e.keyCode;
+            if (key === 'ArrowDown' || e.keyCode === 40) {
                 e.preventDefault();
                 selectedIndex = Math.min(selectedIndex + 1, suggestions.length - 1);
                 updateSelection(suggestions);
-            } else if (e.key === 'ArrowUp') {
+            } else if (key === 'ArrowUp' || e.keyCode === 38) {
                 e.preventDefault();
                 selectedIndex = Math.max(selectedIndex - 1, -1);
                 updateSelection(suggestions);
-            } else if (e.key === 'Escape') {
+            } else if (key === 'Escape' || e.keyCode === 27) {
                 suggestionBox.style.display = 'none';
                 selectedIndex = -1;
             }
@@ -426,205 +425,223 @@
         workMeta.parentElement.insertBefore(tagManager, workMeta.nextSibling);
     }
 
-function addPersonalWorksToTagPage() {
-    try {
-        var currentUrl = window.location.href;
-        var match = window.location.pathname.match(/\/tags\/([^\/]+)/);
-        var currentTag = match ? decodeURIComponent(match[1]) : '';
-        if (!currentTag) return;
+    function addPersonalWorksToTagPage() {
+        try {
+            var currentUrl = window.location.href;
+            var match = window.location.pathname.match(/\/tags\/([^\/]+)/);
+            var currentTag = match ? decodeURIComponent(match[1]) : '';
+            if (!currentTag) return;
 
-        var tagLookup = getTagLookup();
-        var tagLinks = getTagLinks();
+            var tagLookup = getTagLookup();
+            var tagLinks = getTagLinks();
 
-        console.log('Current URL:', currentUrl);
-        console.log('Current tag:', currentTag);
+            console.log('Current URL:', currentUrl);
+            console.log('Current tag:', currentTag);
 
-        // Find all tags that should be displayed on this page
-        var tagsToShow = [];
+            // Find all tags that should be displayed on this page
+            var tagsToShow = [];
 
-        // Check if this is a direct tag match
-        var normalizedCurrentTag = normalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' '));
-        if (tagLookup[normalizedCurrentTag]) {
-            var defaultLink = 'https://archiveofourown.org/tags/' + encodeURIComponent(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')) + '/works';
-            var tagHasCustomLink = tagLinks[normalizedCurrentTag] && tagLinks[normalizedCurrentTag] !== defaultLink;
+            // Check if this is a direct tag match
+            var normalizedCurrentTag = normalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' '));
+            if (tagLookup[normalizedCurrentTag]) {
+                var defaultLink = 'https://archiveofourown.org/tags/' + encodeURIComponent(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')) + '/works';
+                var tagHasCustomLink = tagLinks[normalizedCurrentTag] && tagLinks[normalizedCurrentTag] !== defaultLink;
 
-            tagsToShow.push({
-                normalizedTag: normalizedCurrentTag,
-                displayName: capitalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')),
-                works: tagLookup[normalizedCurrentTag],
-                hasCustomLink: tagHasCustomLink,
-                isDirect: true
-            });
-        }
+                tagsToShow.push({
+                    normalizedTag: normalizedCurrentTag,
+                    displayName: capitalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')),
+                    works: tagLookup[normalizedCurrentTag],
+                    hasCustomLink: tagHasCustomLink,
+                    isDirect: true
+                });
+            }
 
-        // Check for tags with custom links pointing to this page
-        for (var normalizedTag in tagLinks) {
-            var customLink = tagLinks[normalizedTag];
+            // Check for tags with custom links pointing to this page
+            for (var normalizedTag in tagLinks) {
+                var customLink = tagLinks[normalizedTag];
 
-            var urlsMatch = customLink === currentUrl ||
-                           customLink === window.location.href ||
-                           customLink === (window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search) ||
-                           customLink === (window.location.protocol + '//' + window.location.host + window.location.pathname);
+                var urlsMatch = customLink === currentUrl ||
+                               customLink === window.location.href ||
+                               customLink === (window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search) ||
+                               customLink === (window.location.protocol + '//' + window.location.host + window.location.pathname);
 
-            if (urlsMatch && tagLookup[normalizedTag]) {
-                // Check if we already added this tag
-                var alreadyAdded = false;
-                for (var i = 0; i < tagsToShow.length; i++) {
-                    if (tagsToShow[i].normalizedTag === normalizedTag) {
-                        alreadyAdded = true;
-                        break;
+                if (urlsMatch && tagLookup[normalizedTag]) {
+                    // Check if we already added this tag
+                    var alreadyAdded = false;
+                    for (var i = 0; i < tagsToShow.length; i++) {
+                        if (tagsToShow[i].normalizedTag === normalizedTag) {
+                            alreadyAdded = true;
+                            break;
+                        }
+                    }
+
+                    if (!alreadyAdded) {
+                        var works = tagLookup[normalizedTag];
+                        var workIds = Object.keys(works);
+                        var displayName = capitalizeTag(normalizedTag);
+
+                        tagsToShow.push({
+                            normalizedTag: normalizedTag,
+                            displayName: displayName,
+                            works: works,
+                            hasCustomLink: true,
+                            isDirect: false
+                        });
                     }
                 }
-
-                if (!alreadyAdded) {
-                    var works = tagLookup[normalizedTag];
-                    var workIds = Object.keys(works);
-                    var firstWork = workIds.length > 0 ? works[workIds[0]] : null;
-                    var originalTagName = firstWork ? firstWork.originalTag : capitalizeTag(normalizedTag);
-
-                    tagsToShow.push({
-                        normalizedTag: normalizedTag,
-                        displayName: originalTagName,
-                        works: works,
-                        hasCustomLink: true,
-                        isDirect: false
-                    });
-                }
             }
-        }
 
-        console.log('Tags to show:', tagsToShow);
+            console.log('Tags to show:', tagsToShow);
 
-        if (tagsToShow.length === 0) {
-            console.log('No tags to show');
-            return;
-        }
-
-        // Wait for page to load, then insert our content
-        setTimeout(function() {
-            // Find the works list
-            var worksList = document.querySelector('ol.work.index.group') ||
-                           document.querySelector('#main ol.index.group') ||
-                           document.querySelector('#main .index.group') ||
-                           document.querySelector('ol.work.index');
-
-            if (!worksList) {
-                console.log('Works list not found');
+            if (tagsToShow.length === 0) {
+                console.log('No tags to show');
                 return;
             }
 
-            // Remove existing personal tags section if it exists
-            var existingSection = document.querySelector('#personal-tags-section');
-            if (existingSection) {
-                existingSection.remove();
-            }
+            // Wait for page to load, then insert our content
+            setTimeout(function() {
+                // Find the works list
+                var worksList = document.querySelector('ol.work.index.group') ||
+                               document.querySelector('#main ol.index.group') ||
+                               document.querySelector('#main .index.group') ||
+                               document.querySelector('ol.work.index');
 
-            // Create main container for all personal tag sections
-            var mainContainer = document.createElement('div');
-            mainContainer.id = 'personal-tags-section';
-            mainContainer.style.cssText = 'margin: 15px 0;';
+                if (!worksList) {
+                    console.log('Works list not found');
+                    return;
+                }
 
-            // Create each tag section
-            for (var i = 0; i < tagsToShow.length; i++) {
-                var tagInfo = tagsToShow[i];
+                // Remove existing personal tags section if it exists
+                var existingSection = document.querySelector('#personal-tags-section');
+                if (existingSection) {
+                    existingSection.remove();
+                }
 
-                // Create section container - using the simpler GitHub styling
-                var section = document.createElement('div');
-                section.style.cssText = 'margin: 15px 0; padding: 5px; border: 1px solid; border-radius: 5px; overflow: hidden;';
+                // Create main container for all personal tag sections
+                var mainContainer = document.createElement('div');
+                mainContainer.id = 'personal-tags-section';
+                mainContainer.style.cssText = 'margin: 15px 0;';
 
-                // Create section header
-                var header = document.createElement('h4');
-                header.style.cssText = 'margin: 0; padding: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;';
+                // Create each tag section
+                for (var i = 0; i < tagsToShow.length; i++) {
+                    var tagInfo = tagsToShow[i];
 
-                var headerText = document.createElement('span');
-                headerText.textContent = '📌 Your Personal "' + tagInfo.displayName + '" Tags';
+                    // Create section container - using simpler styling
+                    var section = document.createElement('div');
+                    section.style.cssText = 'margin: 0 0 15px 0; padding: 5px; border: 1px solid; border-radius: 5px; overflow: hidden;';
 
-                var toggleIndicator = document.createElement('span');
-                toggleIndicator.textContent = '▼';
-                toggleIndicator.style.cssText = 'font-size: 0.8em; transition: transform 0.2s; transform: rotate(-90deg);';
+                    // Create section header
+                    var header = document.createElement('h4');
+                    header.style.cssText = 'margin: 0; padding: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;';
 
-                header.appendChild(headerText);
-                header.appendChild(toggleIndicator);
+                    var headerText = document.createElement('span');
+                    if (tagInfo.isDirect && tagInfo.hasCustomLink) {
+                        headerText.innerHTML = '📌 Your Personal "' + tagInfo.displayName + '" Tags <span style="color: #999; font-size: 0.8em; font-weight: normal;">(Custom link set)</span>';
+                    } else if (!tagInfo.isDirect) {
+                        headerText.innerHTML = '📌 Your Personal "' + tagInfo.displayName + '" Tags <span style="color: #999; font-size: 0.8em; font-weight: normal;">(Custom link → here)</span>';
+                    } else {
+                        headerText.textContent = '📌 Your Personal "' + tagInfo.displayName + '" Tags';
+                    }
 
-                // Create content container (initially collapsed) - using simpler GitHub styling
-                var content = document.createElement('div');
-                content.style.cssText = 'padding: 0 10px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease;';
+                    var toggleIndicator = document.createElement('span');
+                    toggleIndicator.textContent = '▼';
+                    toggleIndicator.style.cssText = 'font-size: 0.8em; transition: transform 0.2s; transform: rotate(-90deg);';
 
-                // Create works list
-                var worksContainer = document.createElement('div');
-                worksContainer.style.cssText = 'margin: 15px 0;';
+                    header.appendChild(headerText);
+                    header.appendChild(toggleIndicator);
 
-                var works = tagInfo.works;
-                var workIds = Object.keys(works);
+                    // Create content container (initially collapsed)
+                    var content = document.createElement('div');
+                    content.style.cssText = 'padding: 0 10px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease;';
 
-                if (workIds.length === 0) {
-                    worksContainer.innerHTML = '<div style="padding: 15px; color: #999; font-style: italic; text-align: center;">No works found for this tag.</div>';
-                } else {
-                    for (var j = 0; j < workIds.length; j++) {
-                        var workId = workIds[j];
-                        var work = works[workId];
+                    // Create works list
+                    var worksContainer = document.createElement('div');
+                    worksContainer.style.cssText = 'margin: 15px 0;';
 
-                        var workItem = document.createElement('div');
-                        workItem.style.cssText = 'margin: 10px 0; padding: 8px; border-left: 3px solid;';
+                    var works = tagInfo.works;
+                    var workIds = Object.keys(works);
 
-                        workItem.innerHTML = '<h4 style="margin: 0 0 5px 0;"><a href="/works/' + workId + '">' + (work.title || 'Untitled Work') + '</a></h4>' +
-                            (work.author && work.author.trim() ? '<p style="margin: 0; color: #999; font-size: 0.9em;">by ' + work.author + '</p>' : '') +
-                            (work.summary && work.summary.trim() ? '<p style="margin: 5px 0 0 0; font-size: 0.85em;">' + (work.summary.length > 250 ? work.summary.substring(0, 250) + '...' : work.summary) + '</p>' : '');
+                    if (workIds.length === 0) {
+                        worksContainer.innerHTML = '<div style="padding: 15px; color: #999; font-style: italic; text-align: center;">No works found for this tag.</div>';
+                    } else {
+                        for (var j = 0; j < workIds.length; j++) {
+                            var workId = workIds[j];
+                            var work = works[workId];
 
-                        worksContainer.appendChild(workItem);
+                            var workItem = document.createElement('div');
+                            workItem.style.cssText = 'margin: 10px 0; padding: 8px; border-left: 3px solid;';
+
+                            workItem.innerHTML = '<h4 style="margin: 0 0 5px 0;"><a href="/works/' + workId + '">' + (work.title || 'Untitled Work') + '</a></h4>' +
+                                '<p style="margin: 0; color: #999; font-size: 0.9em;">by ' + (work.author && work.author.trim() ? work.author : 'Anonymous') + '</p>' +
+                                (work.summary && work.summary.trim() ? '<p style="margin: 5px 0 0 0; font-size: 0.85em;">' + (work.summary.length > 250 ? work.summary.substring(0, 250) + '...' : work.summary) + '</p>' : '');
+
+                            worksContainer.appendChild(workItem);
+                        }
+                    }
+
+                    content.appendChild(worksContainer);
+
+                    // Add custom link note if applicable
+                    if (tagInfo.hasCustomLink) {
+                        var linkNote = document.createElement('div');
+                        linkNote.style.cssText = 'padding: 12px 0; font-size: 0.85em; color: #999; border-top: 1px solid #444; margin-top: 10px;';
+
+                        if (tagInfo.isDirect) {
+                            linkNote.innerHTML = 'ℹ️ This tag has a custom link set. Your works are shown here for reference, but the tag button in "Personal Tags" will go to your custom page.';
+                        } else {
+                            linkNote.innerHTML = 'ℹ️ Your "' + tagInfo.displayName + '" tag has a custom link pointing to this page.';
+                        }
+                        content.appendChild(linkNote);
+                    }
+
+                    // Set up toggle functionality
+                    var isExpanded = false;
+                    (function(contentEl, indicator) {
+                        header.addEventListener('click', function() {
+                            if (isExpanded) {
+                                contentEl.style.maxHeight = '0';
+                                contentEl.style.padding = '0 10px';
+                                indicator.style.transform = 'rotate(-90deg)';
+                                isExpanded = false;
+                            } else {
+                                contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
+                                contentEl.style.padding = '15px';
+                                indicator.style.transform = 'rotate(0deg)';
+                                isExpanded = true;
+                            }
+                        });
+                    })(content, toggleIndicator);
+
+                    // Assemble the section
+                    section.appendChild(header);
+                    section.appendChild(content);
+                    mainContainer.appendChild(section);
+                }
+
+                // Insert the main container before the works list
+                try {
+                    var parentElement = worksList.parentElement;
+                    if (parentElement) {
+                        parentElement.insertBefore(mainContainer, worksList);
+                        console.log('Personal tags sections inserted successfully');
+                    } else {
+                        console.log('Could not find parent element for works list');
+                    }
+                } catch (error) {
+                    console.error('Error inserting personal tags sections:', error);
+                    // Fallback: try to append to a common container
+                    var mainContent = document.querySelector('#main') || document.querySelector('.content');
+                    if (mainContent) {
+                        mainContent.insertBefore(mainContainer, mainContent.firstChild);
                     }
                 }
 
-                content.appendChild(worksContainer);
+            }, 500);
 
-                // Set up toggle functionality
-                var isExpanded = false;
-                (function(contentEl, indicator) {
-                    header.addEventListener('click', function() {
-                        if (isExpanded) {
-                            contentEl.style.maxHeight = '0';
-                            contentEl.style.padding = '0 10px';
-                            indicator.style.transform = 'rotate(-90deg)';
-                            isExpanded = false;
-                        } else {
-                            contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
-                            contentEl.style.padding = '15px';
-                            indicator.style.transform = 'rotate(0deg)';
-                            isExpanded = true;
-                        }
-                    });
-                })(content, toggleIndicator);
-
-                // Assemble the section
-                section.appendChild(header);
-                section.appendChild(content);
-                mainContainer.appendChild(section);
-            }
-
-            // Insert the main container before the works list
-            try {
-                var parentElement = worksList.parentElement;
-                if (parentElement) {
-                    parentElement.insertBefore(mainContainer, worksList);
-                    console.log('Personal tags sections inserted successfully');
-                } else {
-                    console.log('Could not find parent element for works list');
-                }
-            } catch (error) {
-                console.error('Error inserting personal tags sections:', error);
-                // Fallback: try to append to a common container
-                var mainContent = document.querySelector('#main') || document.querySelector('.content');
-                if (mainContent) {
-                    mainContent.insertBefore(mainContainer, mainContent.firstChild);
-                }
-            }
-
-        }, 500);
-
-    } catch (error) {
-        console.error('Error in addPersonalWorksToTagPage:', error);
+        } catch (error) {
+            console.error('Error in addPersonalWorksToTagPage:', error);
+        }
     }
-}
 
     function showPersonalTagsModal() {
         var allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
