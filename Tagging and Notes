@@ -1985,24 +1985,6 @@ function processStoryPage() {
             btn.style.fontWeight = 'bold';
         }
 
-        // Add hover effects
-        btn.addEventListener('mouseenter', () => {
-            if (currentTag !== tag) {
-                btn.style.background = '#f0f0f0';
-            }
-        });
-
-btn.addEventListener('mouseleave', () => {
-    const labels = Storage.loadLabels();
-    const activeTag = labels[workId];
-    if (activeTag !== tag) {
-        btn.style.background = '#eee';
-    } else {
-        btn.style.background = TAG_COLORS[tag].bg;
-        btn.style.color = TAG_COLORS[tag].text;
-    }
-});
-
         // FIXED CLICK HANDLER - with immediate UI update
         btn.addEventListener('click', (e) => {
             e.preventDefault();
