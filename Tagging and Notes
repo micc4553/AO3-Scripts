@@ -1985,6 +1985,21 @@ function processStoryPage() {
             btn.style.fontWeight = 'bold';
         }
 
+btn.addEventListener('mouseenter', () => {
+    const labels = Storage.loadLabels();
+    const activeTag = labels[workId];
+    if (activeTag !== tag) {
+        btn.style.background = '#f0f0f0';
+    }
+});
+
+btn.addEventListener('mouseleave', () => {
+    const labels = Storage.loadLabels();
+    const activeTag = labels[workId];
+    if (activeTag !== tag) {
+        btn.style.background = '#eee';
+    }
+});
         // FIXED CLICK HANDLER - with immediate UI update
         btn.addEventListener('click', (e) => {
             e.preventDefault();
