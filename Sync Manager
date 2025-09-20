@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Sync Manager
-// @version      2.1.0
+// @version      2.1.1
 // @description  Sync AO3 tagging and notes data across devices using Google Apps Script
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -64,6 +64,10 @@
         static saveTagLookup(v) { this.save(KEYS.TAG_LOOKUP, v); }
         static loadTagLinks() { return this.load(KEYS.TAG_LINKS); }
         static saveTagLinks(v) { this.save(KEYS.TAG_LINKS, v); }
+      static loadDeletedPersonalTagWorks() { return this.load('ao3_deleted_personal_tag_works', []); }
+static saveDeletedPersonalTagWorks(v) { this.save('ao3_deleted_personal_tag_works', v); }
+static loadDeletedTagLookupTags() { return this.load('ao3_deleted_tag_lookup_tags', []); }
+static saveDeletedTagLookupTags(v) { this.save('ao3_deleted_tag_lookup_tags', v); }
     }
 
     // Validation utilities
@@ -352,6 +356,8 @@
                         personalTags: localStorage.getItem(KEYS.PERSONAL_TAGS) || "{}",
                         tagLookup: localStorage.getItem(KEYS.TAG_LOOKUP) || "{}",
                         tagLinks: localStorage.getItem(KEYS.TAG_LINKS) || "{}",
+deletedPersonalTagWorks: Storage.loadDeletedPersonalTagWorks(),
+deletedTagLookupTags: Storage.loadDeletedTagLookupTags(),
                         timestamp: Date.now(),
                     },
                 };
@@ -579,6 +585,22 @@
             removedTagLookupEntries
         };
     }
+
+  function trackDeletedTagWork(workId) {
+    var deletedWorks = JSON.parse(localStorage.getItem('ao3_deleted_personal_tag_works') || '[]');
+    if (deletedWorks.indexOf(workId) === -1) {
+        deletedWorks.push(workId);
+        localStorage.setItem('ao3_deleted_personal_tag_works', JSON.stringify(deletedWorks));
+    }
+}
+
+function trackDeletedTag(tagName) {
+    var deletedTags = JSON.parse(localStorage.getItem('ao3_deleted_tag_lookup_tags') || '[]');
+    if (deletedTags.indexOf(tagName) === -1) {
+        deletedTags.push(tagName);
+        localStorage.setItem('ao3_deleted_tag_lookup_tags', JSON.stringify(deletedTags));
+    }
+}
 
     // Settings panel
     function createSettingsPanel() {
