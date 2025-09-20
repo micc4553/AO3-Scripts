@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Tagging and Notes
-// @version      8.2.8
+// @version      8.2.9
 // @description  Tag AO3 works with Google sync for cross-device data
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -381,7 +381,6 @@ if (target.matches(".download-tag-btn") || target.closest(".download-tag-btn")) 
 
 async handleRefreshFic(button) {
     const workId = button.dataset.workId;
-
     button.innerHTML = "✅";
     button.disabled = true;
 
@@ -403,10 +402,41 @@ async handleRefreshFic(button) {
 
         console.log("Updated to:", newMetadata.title, "by", newMetadata.author);
 
+        // Reset button after successful refresh
+        setTimeout(() => {
+            button.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>`;
+            button.disabled = false;
+            button.title = "";
+        }, 1000);
+
     } catch (error) {
         console.error("Failed to refresh metadata:", error);
         button.innerHTML = "❌";
-        button.disabled = false;
+
+        if (error.message.includes('429') || error.message.includes('rate limit')) {
+            button.title = "Rate limited - try again later";
+            setTimeout(() => {
+                button.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                </svg>`;
+                button.disabled = false;
+                button.title = "";
+            }, 10000);
+        } else if (error.message.includes('403') || error.message.includes('404')) {
+            button.title = "Work unavailable - cannot refresh";
+            button.disabled = true;
+        } else {
+            button.title = "Refresh failed - click to retry";
+            setTimeout(() => {
+                button.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                </svg>`;
+                button.disabled = false;
+                button.title = "";
+            }, 3000);
+        }
     }
 }
         async handleTagClick(tag) {
@@ -553,42 +583,47 @@ async handleRefreshFic(button) {
             }
         }
 
-        updateWorksDisplay() {
-            const worksList = this.workData.map(({ ficId, workId, metadata, note }) => {
-                return `
-                    <div class="work-item" data-fic-id="${ficId}"
-                         style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;
-                                border:1px solid #ddd;position:relative;">
-                        <div style="margin-bottom:8px;">
-                            <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
-                                <strong>${metadata.title}</strong> by ${metadata.author}
-                            </a>
-                            <button class="refresh-fic-btn" data-fic-id="${ficId}" data-work-id="${workId}"
-                                    style="background:transparent;color:#ccc;border:none;cursor:pointer;margin-left:8px;box-shadow:none;padding:0;outline:none;position:relative;top:-15px;height:0;overflow:visible;transform-origin:center center;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-                                </svg>
-                            </button>
-                        </div>
-                        ${note ? `
-                            <div style="font-size:0.9em;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;">
-                                <em>"${note.text}"</em>
-                                ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
-                            </div>
-                        ` : ""}
-                        <button class="delete-tag-btn" data-fic-id="${ficId}" data-tag="${this.currentTag}"
-                                style="position:absolute;top:8px;right:8px;background:#f44336;color:white;
-                                       border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;
-                                       font-size:12px;">×</button>
+updateWorksDisplay() {
+    const worksList = this.workData.map(({ ficId, workId, metadata, note, summary }) => {
+        return `
+            <div class="work-item" data-fic-id="${ficId}"
+                 style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;
+                        border:1px solid #ddd;position:relative;">
+                <div style="margin-bottom:8px;">
+                    <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
+                        <strong>${metadata.title}</strong> by ${metadata.author}
+                    </a>
+                    <button class="refresh-fic-btn" data-fic-id="${ficId}" data-work-id="${workId}"
+                            style="background:transparent;color:#ccc;border:none;cursor:pointer;margin-left:8px;box-shadow:none;padding:0;outline:none;position:relative;top:-15px;height:0;overflow:visible;transform-origin:center center;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                        </svg>
+                    </button>
+                </div>
+                ${this.currentTag === "To Read" && summary ? `
+                    <div style="font-size:0.85em;margin:8px 0;padding:8px;background:#44415a20;border-radius:4px;border-left:3px solid #6b8a7a;">
+                        <strong>Summary:</strong> ${summary}
                     </div>
-                `;
-            }).join("");
+                ` : ""}
+                ${note ? `
+                    <div style="font-size:0.9em;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;">
+                        "${note.text}"
+                        ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
+                    </div>
+                ` : ""}
+                <button class="delete-tag-btn" data-fic-id="${ficId}" data-tag="${this.currentTag}"
+                        style="position:absolute;top:8px;right:8px;background:#f44336;color:white;
+                               border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;
+                               font-size:12px;">×</button>
+            </div>
+        `;
+    }).join("");
 
-            const worksListContainer = this.content.querySelector("#works-list");
-            if (worksListContainer) {
-                worksListContainer.innerHTML = worksList;
-            }
-        }
+    const worksListContainer = this.content.querySelector("#works-list");
+    if (worksListContainer) {
+        worksListContainer.innerHTML = worksList;
+    }
+}
 
         updateAuthorDisplay() {
             const authorsList = this.authorsData.map(({authorId, note}) => `
@@ -652,29 +687,38 @@ async handleRefreshFic(button) {
 
                 const color = TAG_COLORS[tag] || { bg: "#6e6a86", text: "#000" };
 
-                // Fetch metadata
-                this.workData = await Promise.all(
-                    works.map(async (ficId) => {
-                        try {
-                            const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
-                            const metadata = await MetadataCache.fetchWorkMetadata(workId);
-                            return {
-                                ficId,
-                                workId,
-                                metadata,
-                                note: notes[ficId],
-                            };
-                        } catch (error) {
-                            console.error("Error fetching metadata for", ficId, error);
-                            return {
-                                ficId,
-                                workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
-                                metadata: { title: `Work ${ficId}`, author: 'Unknown' },
-                                note: notes[ficId],
-                            };
-                        }
-                    })
-                );
+// Fetch metadata
+this.workData = await Promise.all(
+    works.map(async (ficId) => {
+        try {
+            const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
+            const metadata = await MetadataCache.fetchWorkMetadata(workId);
+
+            // Only fetch summary if this is the "To Read" tag
+            let summary = '';
+            if (tag === "To Read") {
+                summary = await fetchWorkSummary(workId);
+            }
+
+            return {
+                ficId,
+                workId,
+                metadata,
+                note: notes[ficId],
+                summary
+            };
+        } catch (error) {
+            console.error("Error fetching metadata for", ficId, error);
+            return {
+                ficId,
+                workId: ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1"),
+                metadata: { title: `Work ${ficId}`, author: 'Unknown' },
+                note: notes[ficId],
+                summary: ''
+            };
+        }
+    })
+);
 
                 // Sort by Work ID by default
                 this.sortWorkData('work-id');
@@ -1086,11 +1130,9 @@ static get(workId) {
     const cache = Storage.loadMetadataCache();
     const cached = cache[workId];
     if (cached && Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
-        // Validate cached data has required properties
         if (cached.data && cached.data.title && cached.data.author) {
-            return cached.data;
+            return cached.data;  // Return just the data, not the wrapper
         } else {
-            // Remove corrupted cache entry
             delete cache[workId];
             Storage.saveMetadataCache(cache);
         }
@@ -1098,18 +1140,25 @@ static get(workId) {
     return null;
 }
 
-        static set(workId, data) {
-            const cache = Storage.loadMetadataCache();
-            cache[workId] = data;
-            Storage.saveMetadataCache(cache);
-        }
+static set(workId, data) {
+    try {
+        const cache = Storage.loadMetadataCache();
+        cache[workId] = {
+            timestamp: Date.now(),
+            data: data
+        };
+        Storage.saveMetadataCache(cache);
+    } catch (error) {
+        console.error(`Failed to cache metadata for work ${workId}:`, error);
+    }
+}
 
         static async fetchWorkMetadata(workId, skipNetworkFetch = false) {
             // Check cache first
             const cached = this.get(workId);
-            if (cached && cached.title !== `Work ${workId}`) {
-                return cached;
-            }
+            if (cached && cached.title && cached.title !== `Work ${workId}`) {
+    return cached;
+}
 
             // Return placeholder if network fetch is disabled
             if (skipNetworkFetch) {
@@ -1134,9 +1183,9 @@ static get(workId) {
                 console.log(`Successfully fetched metadata for ${workId}:`, metadata);
 
                 // Only cache if we got real data
-                if (this.isValidMetadata(metadata, workId)) {
-                    this.set(workId, metadata);
-                }
+if (this.isValidMetadata(metadata, workId)) {
+    this.set(workId, metadata);  // Just pass metadata directly
+}
 
                 return metadata;
 
@@ -1384,6 +1433,42 @@ static get(workId) {
         }
     }
 
+  // Add this as a separate function for fetching summaries
+async function fetchWorkSummary(workId) {
+    if (!workId || !/^\d+$/.test(workId)) {
+        return Promise.resolve('');
+    }
+
+    return new Promise((resolve) => {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `https://archiveofourown.org/works/${workId}`,
+            timeout: 15000,
+            onload: (response) => {
+                let summary = '';
+                if (response.status === 200) {
+                    try {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(response.responseText, 'text/html');
+                        const summaryEl = doc.querySelector('.summary blockquote') ||
+                                         doc.querySelector('.summary .userstuff') ||
+                                         doc.querySelector('#workskin .summary');
+
+                        if (summaryEl && summaryEl.textContent.trim()) {
+                            summary = summaryEl.textContent.trim();
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching summary for work ${workId}:`, error);
+                    }
+                }
+                resolve(summary);
+            },
+            onerror: () => resolve(''),
+            ontimeout: () => resolve('')
+        });
+    });
+}
+
     // Mass Download Manager (simplified with event delegation)
     class MassDownloadManager {
         constructor() {
@@ -1426,29 +1511,14 @@ static get(workId) {
                     </div>
                 `);
 
-// Fetch metadata for all works with rate limiting
-const workData = [];
-for (let i = 0; i < allIds.length; i++) {
-    const ficId = allIds[i];
-    const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
-
-    try {
+// Fetch metadata for all works
+const workData = await Promise.all(
+    allIds.map(async (ficId) => {
+        const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
         const metadata = await MetadataCache.fetchWorkMetadata(workId);
-        workData.push({ ficId, workId, metadata });
-
-        // Add delay between requests to avoid rate limiting
-        if (i < allIds.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-    } catch (error) {
-        console.error(`Failed to fetch metadata for ${workId}:`, error);
-        workData.push({
-            ficId,
-            workId,
-            metadata: { title: `Work_${workId}`, author: 'Unknown_Author' }
-        });
-    }
-}
+        return { ficId, workId, metadata };
+    })
+);
 
 const downloadHistory = Storage.loadDownloadHistory();
 const tagHistory = downloadHistory[tag] || 0;
@@ -1575,9 +1645,7 @@ const worksList = workData.map(({ ficId, workId, metadata }) => {
         }
 
         async downloadFic(ficId) {
-            const workId = ficId.startsWith('bookmark_')
-                ? ficId.replace('bookmark_', '').replace(/^.*?(\d+).*$/, '$1')
-                : ficId.match(/\d+/)?.[0];
+            const workId = ficId.replace("bookmark_", "").replace(/^.*?(\d+).*$/, "$1");
 
             const metadata = await MetadataCache.fetchWorkMetadata(workId);
             const htmlContent = await this.fetchWorkContent(workId);
