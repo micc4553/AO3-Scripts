@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Personal Tags
-// @version      1.2.1
+// @version      1.2.2
 // @description  Add personal tags to AO3 works with customizable links (Firefox 115 ESR Compatible)
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -526,6 +526,10 @@
                 for (var i = 0; i < tagsToShow.length; i++) {
                     var tagInfo = tagsToShow[i];
 
+                    if (workIds.length === 0) {
+                    continue;
+                    }
+
                     // Create section container - using simpler styling
                     var section = document.createElement('div');
                     section.style.cssText = 'margin: 0 0 15px 0; padding: 5px; border: 1px solid; border-radius: 5px; overflow: hidden;';
@@ -535,13 +539,8 @@
                     header.style.cssText = 'margin: 0; padding: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;';
 
                     var headerText = document.createElement('span');
-                    if (tagInfo.isDirect && tagInfo.hasCustomLink) {
-                        headerText.innerHTML = '📌 Your Personal "' + tagInfo.displayName + '" Tags <span style="color: #999; font-size: 0.8em; font-weight: normal;">(Custom link set)</span>';
-                    } else if (!tagInfo.isDirect) {
-                        headerText.innerHTML = '📌 Your Personal "' + tagInfo.displayName + '" Tags <span style="color: #999; font-size: 0.8em; font-weight: normal;">(Custom link → here)</span>';
-                    } else {
-                        headerText.textContent = '📌 Your Personal "' + tagInfo.displayName + '" Tags';
-                    }
+                    headerText.textContent = '📌 Your Personal "' + tagInfo.displayName + '" Tags';
+
 
                     var toggleIndicator = document.createElement('span');
                     toggleIndicator.textContent = '▼';
@@ -561,38 +560,8 @@
                     var works = tagInfo.works;
                     var workIds = Object.keys(works);
 
-                    if (workIds.length === 0) {
-                        worksContainer.innerHTML = '<div style="padding: 15px; color: #999; font-style: italic; text-align: center;">No works found for this tag.</div>';
-                    } else {
-                        for (var j = 0; j < workIds.length; j++) {
-                            var workId = workIds[j];
-                            var work = works[workId];
-
-                            var workItem = document.createElement('div');
-                            workItem.style.cssText = 'margin: 10px 0; padding: 8px; border-left: 3px solid;';
-
-                            workItem.innerHTML = '<h4 style="margin: 0 0 5px 0;"><a href="/works/' + workId + '">' + (work.title || 'Untitled Work') + '</a></h4>' +
-                                '<p style="margin: 0; color: #999; font-size: 0.9em;">by ' + (work.author && work.author.trim() ? work.author : 'Anonymous') + '</p>' +
-                                (work.summary && work.summary.trim() ? '<p style="margin: 5px 0 0 0; font-size: 0.85em;">' + (work.summary.length > 250 ? work.summary.substring(0, 250) + '...' : work.summary) + '</p>' : '');
-
-                            worksContainer.appendChild(workItem);
-                        }
-                    }
 
                     content.appendChild(worksContainer);
-
-                    // Add custom link note if applicable
-                    if (tagInfo.hasCustomLink) {
-                        var linkNote = document.createElement('div');
-                        linkNote.style.cssText = 'padding: 12px 0; font-size: 0.85em; color: #999; border-top: 1px solid #444; margin-top: 10px;';
-
-                        if (tagInfo.isDirect) {
-                            linkNote.innerHTML = 'ℹ️ This tag has a custom link set. Your works are shown here for reference, but the tag button in "Personal Tags" will go to your custom page.';
-                        } else {
-                            linkNote.innerHTML = 'ℹ️ Your "' + tagInfo.displayName + '" tag has a custom link pointing to this page.';
-                        }
-                        content.appendChild(linkNote);
-                    }
 
                     // Set up toggle functionality
                     var isExpanded = false;
@@ -682,10 +651,31 @@
 
         overlay.appendChild(modal);
 
-        var header = document.createElement('div');
-        header.style.cssText = 'font-weight: bold; font-size: 1.2em; margin-bottom: 15px; border-bottom: 1px solid #555; padding-bottom: 8px;';
-        header.textContent = '📌 Your Personal Tags';
-        modal.appendChild(header);
+var header = document.createElement('div');
+header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 1.2em; margin-bottom: 15px; border-bottom: 1px solid #555; padding-bottom: 8px;';
+
+var headerText = document.createElement('span');
+headerText.textContent = '📌 Your Personal Tags';
+header.appendChild(headerText);
+
+// Add cleanup button
+var cleanupButton = document.createElement('button');
+cleanupButton.textContent = 'Cleanup Empty Tags';
+cleanupButton.style.cssText = 'border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8em;';
+cleanupButton.addEventListener('click', function() {
+    console.log('Button clicked!');
+    var result = cleanupEmptyTags();
+    if (result) {
+        alert('Cleanup complete!');
+        overlay.remove();
+        showPersonalTagsModal();
+    } else {
+        alert('No cleanup needed.');
+    }
+});
+
+header.appendChild(cleanupButton);
+modal.appendChild(header);
 
         var content = document.createElement('div');
         content.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;';
@@ -762,6 +752,67 @@
         });
     }
 
+function cleanupEmptyTags() {
+      console.log('cleanupEmptyTags function started');
+
+    var personalTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
+    var tagLookup = JSON.parse(localStorage.getItem(KEYS.TAG_LOOKUP) || '{}');
+    var cleaned = false;
+
+    // Remove works with empty tag arrays from personal tags
+    for (var workId in personalTags) {
+        console.log('Checking work:', workId, 'tags:', personalTags[workId], 'length:', personalTags[workId] ? personalTags[workId].length : 'undefined');
+        if (!personalTags[workId] || personalTags[workId].length === 0) {
+            delete personalTags[workId];
+            cleaned = true;
+            console.log('Removed empty personal tags for work:', workId);
+        }
+    }
+
+    // Remove empty tag categories from tag lookup
+    for (var tagName in tagLookup) {
+        if (!tagLookup[tagName] || Object.keys(tagLookup[tagName]).length === 0) {
+            delete tagLookup[tagName];
+            cleaned = true;
+            console.log('Removed empty tag lookup for:', tagName);
+        }
+    }
+
+// Check for orphaned tag lookup entries
+console.log('Checking for orphaned entries...');
+for (var tagName in tagLookup) {
+    var works = tagLookup[tagName];
+    console.log('Checking tag:', tagName, 'with works:', Object.keys(works));
+    for (var workId in works) {
+        var workPersonalTags = personalTags[workId] || [];
+        console.log('Work', workId, 'personal tags:', workPersonalTags);
+        var hasThisTag = false;
+        for (var i = 0; i < workPersonalTags.length; i++) {
+            if (normalizeTag(workPersonalTags[i]) === tagName) {
+                hasThisTag = true;
+                break;
+            }
+        }
+        console.log('Work', workId, 'has tag', tagName, '?', hasThisTag);
+        if (!hasThisTag) {
+            delete works[workId];
+            cleaned = true;
+            console.log('Removed orphaned work from tag lookup:', workId, 'from tag:', tagName);
+        }
+    }
+}
+
+// Always save if anything was cleaned
+if (cleaned) {
+    savePersonalTags(personalTags);
+    saveTagLookup(tagLookup);
+    console.log('Cleanup complete');
+}
+
+// Always return true so the button logic runs
+return cleaned;
+}
+
     function init() {
         var path = window.location.pathname;
 
@@ -772,6 +823,7 @@
         }
 
         addPersonalTagsButton();
+
     }
 
     if (document.readyState === 'loading') {
