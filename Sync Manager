@@ -501,91 +501,6 @@ deletedTagLookupTags: Storage.loadDeletedTagLookupTags(),
         }
     }
 
-    // Cleanup utilities
-    function cleanupInvalidEntries() {
-        const labels = Storage.loadLabels();
-        const notes = Storage.loadNotes();
-        const authorNotes = Storage.loadAuthorNotes();
-        const personalTags = Storage.loadPersonalTags();
-        const tagLookup = Storage.loadTagLookup();
-
-        const validLabels = {};
-        const validNotes = {};
-        const validAuthorNotes = {};
-        const validPersonalTags = {};
-        const validTagLookup = {};
-
-        let removedLabels = 0;
-        let removedNotes = 0;
-        let removedAuthorNotes = 0;
-        let removedPersonalTags = 0;
-        let removedTagLookupEntries = 0;
-
-        Object.entries(labels).forEach(([id, label]) => {
-            if (Validator.isValidWorkId(id)) {
-                validLabels[id] = label;
-            } else {
-                removedLabels++;
-            }
-        });
-
-        Object.entries(notes).forEach(([id, note]) => {
-            if (Validator.isValidWorkId(id)) {
-                validNotes[id] = note;
-            } else {
-                removedNotes++;
-            }
-        });
-
-        Object.entries(authorNotes).forEach(([id, note]) => {
-            if (Validator.isValidAuthorId(id)) {
-                validAuthorNotes[id] = note;
-            } else {
-                removedAuthorNotes++;
-            }
-        });
-
-        // Clean up personal tags
-        Object.entries(personalTags).forEach(([id, tags]) => {
-            if (Validator.isValidWorkId(id) && Array.isArray(tags)) {
-                validPersonalTags[id] = tags;
-            } else {
-                removedPersonalTags++;
-            }
-        });
-
-        // Clean up tag lookup
-        Object.entries(tagLookup).forEach(([tag, works]) => {
-            if (Validator.isValidTagName(tag)) {
-                const validWorks = {};
-                Object.entries(works).forEach(([workId, workData]) => {
-                    if (Validator.isValidWorkId(workId)) {
-                        validWorks[workId] = workData;
-                    } else {
-                        removedTagLookupEntries++;
-                    }
-                });
-                if (Object.keys(validWorks).length > 0) {
-                    validTagLookup[tag] = validWorks;
-                }
-            }
-        });
-
-        Storage.saveLabels(validLabels);
-        Storage.saveNotes(validNotes);
-        Storage.saveAuthorNotes(validAuthorNotes);
-        Storage.savePersonalTags(validPersonalTags);
-        Storage.saveTagLookup(validTagLookup);
-
-        return {
-            removedLabels,
-            removedNotes,
-            removedAuthorNotes,
-            removedPersonalTags,
-            removedTagLookupEntries
-        };
-    }
-
   function trackDeletedTagWork(workId) {
     var deletedWorks = JSON.parse(localStorage.getItem('ao3_deleted_personal_tag_works') || '[]');
     if (deletedWorks.indexOf(workId) === -1) {
@@ -607,14 +522,12 @@ function trackDeletedTag(tagName) {
         const settings = Storage.loadSyncSettings();
 
         const modal = UI.createModal(`
-            <div style="max-width:500px;">
-                <div style="margin:15px 0;">
-                    <button id="cleanup-storage" style="background:#ff9800;color:white;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;margin-right:5px;">Clean Up Storage</button>
-                    <button id="export-data" style="background:#2196F3;color:white;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;margin-right:5px;">Export Data</button>
-                    <button id="import-data" style="background:#4CAF50;color:white;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;">Import Data</button>
-                    <input type="file" id="import-file" accept=".json" style="display:none;">
-                </div>
-
+<div style="margin:15px 0;display:flex;gap:10px;width:100%;">
+    <button id="clear-old-deletions" style="background:#a85c6b;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Clear Deletions</button>
+    <button id="export-data" style="background:#7a9bb8;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Export Data</button>
+    <button id="import-data" style="background:#8b7db8;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Import Data</button>
+    <input type="file" id="import-file" accept=".json" style="display:none;">
+</div>
                 <div style="margin:15px 0;">
                     <label style="color:#fff;display:flex;align-items:center;gap:8px;margin:20px 0;">
                         <input type="checkbox" id="sync-enabled" ${settings.enabled ? "checked" : ""}>
@@ -638,10 +551,10 @@ function trackDeletedTag(tagName) {
                     </label>
                 </div>
 
-                <div style="display:flex;gap:10px;margin-top:20px;">
-                    <button id="save-settings" style="background:#4CAF50;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;flex:1;">Save Settings</button>
-                    <button id="close-settings" style="background:#666;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;flex:1;">Close</button>
-                </div>
+<div style="display:flex;gap:10px;margin-top:20px;">
+    <button id="save-settings" style="background:#6b8a7a;color:white;border:none;padding:4px 16px;border-radius:4px;cursor:pointer;flex:1;">Save Settings</button>
+    <button id="close-settings" style="background:#8b7355;color:white;border:none;padding:4px 16px;border-radius:4px;cursor:pointer;flex:1;">Close</button>
+</div>
             </div>
         `, "Sync Settings");
 
@@ -653,12 +566,50 @@ function trackDeletedTag(tagName) {
         });
 
         // Event listeners
-        modal.querySelector("#cleanup-storage").addEventListener("click", () => {
-            const result = cleanupInvalidEntries();
-            alert(`Cleanup complete!\nRemoved: ${result.removedLabels} labels, ${result.removedNotes} notes, ${result.removedAuthorNotes} author notes, ${result.removedPersonalTags} personal tag entries, ${result.removedTagLookupEntries} tag lookup entries`);
-        });
+        modal.querySelector("#clear-old-deletions").addEventListener("click", () => {
+    const daysOld = prompt("Clear deletions older than how many days? (default: 30)", "30");
+    if (!daysOld) return;
 
-        modal.querySelector("#save-settings").addEventListener("click", () => {
+    const cleanupAge = parseInt(daysOld) * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    const deletedNotes = Storage.loadDeletedNotes();
+    const deletedAuthorNotes = Storage.loadDeletedAuthorNotes();
+    const deletedLabels = Storage.loadDeletedLabels();
+
+    let cleared = 0;
+
+    // Clean deleted notes
+    Object.keys(deletedNotes).forEach(id => {
+        if (now - deletedNotes[id] > cleanupAge) {
+            delete deletedNotes[id];
+            cleared++;
+        }
+    });
+
+    // Clean deleted author notes
+    Object.keys(deletedAuthorNotes).forEach(id => {
+        if (now - deletedAuthorNotes[id] > cleanupAge) {
+            delete deletedAuthorNotes[id];
+            cleared++;
+        }
+    });
+
+    // Clean deleted labels
+    Object.keys(deletedLabels).forEach(id => {
+        if (now - deletedLabels[id] > cleanupAge) {
+            delete deletedLabels[id];
+            cleared++;
+        }
+    });
+
+    Storage.saveDeletedNotes(deletedNotes);
+    Storage.saveDeletedAuthorNotes(deletedAuthorNotes);
+    Storage.saveDeletedLabels(deletedLabels);
+
+    alert(`Cleared ${cleared} old deletion records older than ${daysOld} days.`);
+});
+      modal.querySelector("#save-settings").addEventListener("click", () => {
             const newSettings = {
                 ...settings,
                 enabled: modal.querySelector("#sync-enabled").checked,
@@ -748,8 +699,6 @@ function trackDeletedTag(tagName) {
 
     // Initialize sync manager
     function initSyncManager() {
-        // Clean up invalid entries on startup
-        cleanupInvalidEntries();
 
         // Add sync button to navigation
         addSyncButton();
