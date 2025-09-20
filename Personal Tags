@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Personal Tags
-// @version      1.2.0
+// @version      1.2.1
 // @description  Add personal tags to AO3 works with customizable links
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -12,28 +12,28 @@
     'use strict';
 
     // Shared storage keys
-    const KEYS = {
+    var KEYS = {
         PERSONAL_TAGS: "ao3_personal_tags",
         TAG_LOOKUP: "ao3_tag_lookup",
-        TAG_LINKS: "ao3_tag_links" // New key for custom links
+        TAG_LINKS: "ao3_tag_links"
     };
 
     function isValidWorkId(id) {
         if (!id || typeof id !== "string") return false;
-        if (id.includes('null') || id.includes('undefined') || id.includes('NaN')) return false;
+        if (id.indexOf('null') !== -1 || id.indexOf('undefined') !== -1 || id.indexOf('NaN') !== -1) return false;
         if (id.trim() === '' || id.length > 8) return false;
         return /^\d+$/.test(id);
     }
 
     // Storage functions
     function getPersonalTags(workId) {
-        const tags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
+        var tags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
         return tags[workId] || [];
     }
 
     function savePersonalTags(workId, tags) {
         if (!isValidWorkId(workId)) return;
-        const allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
+        var allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
         allTags[workId] = tags;
         localStorage.setItem(KEYS.PERSONAL_TAGS, JSON.stringify(allTags));
     }
@@ -46,7 +46,6 @@
         localStorage.setItem(KEYS.TAG_LOOKUP, JSON.stringify(tagLookup));
     }
 
-    // New functions for custom tag links
     function getTagLinks() {
         return JSON.parse(localStorage.getItem(KEYS.TAG_LINKS) || '{}');
     }
@@ -56,33 +55,31 @@
     }
 
     function getTagLink(tag) {
-        const normalizedTag = normalizeTag(tag);
-        const tagLinks = getTagLinks();
-        return tagLinks[normalizedTag] || `https://archiveofourown.org/tags/${encodeURIComponent(tag)}/works`;
+        var normalizedTag = normalizeTag(tag);
+        var tagLinks = getTagLinks();
+        return tagLinks[normalizedTag] || 'https://archiveofourown.org/tags/' + encodeURIComponent(tag) + '/works';
     }
 
     function setTagLink(tag, link) {
-        const normalizedTag = normalizeTag(tag);
-        const tagLinks = getTagLinks();
+        var normalizedTag = normalizeTag(tag);
+        var tagLinks = getTagLinks();
         tagLinks[normalizedTag] = link;
         saveTagLinks(tagLinks);
     }
 
     function normalizeTag(tag) {
-        // Normalize tags to lowercase for consistent storage
         return tag.toLowerCase().trim();
     }
 
     function capitalizeTag(tag) {
-        // Capitalize first letter of each word for display
         return tag.split(' ').map(function(word) {
             return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
         }).join(' ');
     }
 
     function addWorkToTag(tag, workInfo) {
-        const normalizedTag = normalizeTag(tag);
-        const tagLookup = getTagLookup();
+        var normalizedTag = normalizeTag(tag);
+        var tagLookup = getTagLookup();
         if (!tagLookup[normalizedTag]) {
             tagLookup[normalizedTag] = {};
         }
@@ -90,14 +87,14 @@
             title: workInfo.title,
             author: workInfo.author,
             summary: workInfo.summary || '',
-            originalTag: tag // Store original for display
+            originalTag: tag
         };
         saveTagLookup(tagLookup);
     }
 
     function removeWorkFromTag(tag, workId) {
-        const normalizedTag = normalizeTag(tag);
-        const tagLookup = getTagLookup();
+        var normalizedTag = normalizeTag(tag);
+        var tagLookup = getTagLookup();
         if (tagLookup[normalizedTag]) {
             delete tagLookup[normalizedTag][workId];
             if (Object.keys(tagLookup[normalizedTag]).length === 0) {
@@ -107,106 +104,59 @@
         }
     }
 
-    // Get work info from page
     function getWorkInfo() {
         var match = window.location.pathname.match(/\/works\/(\d+)/);
-        const workId = match ? match[1] : null;
+        var workId = match ? match[1] : null;
         if (!workId || !isValidWorkId(workId)) return null;
 
-        const titleElement = document.querySelector('.title.heading');
-        const title = titleElement ? titleElement.textContent.trim() : '';
+        var titleElement = document.querySelector('.title.heading');
+        var title = titleElement ? titleElement.textContent.trim() : '';
 
-        const authorElement = document.querySelector('.byline.heading a[rel="author"]');
-        const author = authorElement ? authorElement.textContent.trim() : '';
+        var authorElement = document.querySelector('.byline.heading a[rel="author"]');
+        var author = authorElement ? authorElement.textContent.trim() : '';
 
-        const summaryElement = document.querySelector('.summary blockquote');
-        const summary = summaryElement ? summaryElement.textContent.trim() : '';
+        var summaryElement = document.querySelector('.summary blockquote');
+        var summary = summaryElement ? summaryElement.textContent.trim() : '';
 
         return { id: workId, title: title, author: author, summary: summary };
     }
 
-    // Show link editor modal
     function showLinkEditor(tag, callback) {
-        // Remove existing modal if present
-        const existingModal = document.querySelector('#link-editor-modal');
+        var existingModal = document.querySelector('#link-editor-modal');
         if (existingModal) existingModal.remove();
 
-        // Create modal overlay
-        const overlay = document.createElement('div');
+        var overlay = document.createElement('div');
         overlay.id = 'link-editor-modal';
-        overlay.style.cssText = [
-            'position: fixed',
-            'top: 0',
-            'left: 0',
-            'width: 100%',
-            'height: 100%',
-            'background: rgba(0,0,0,0.5)',
-            'display: flex',
-            'align-items: center',
-            'justify-content: center',
-            'z-index: 9999'
-        ].join('; ');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;';
 
-        // Modal container
-        const modal = document.createElement('div');
-        modal.style.cssText = [
-            'background: #232136CC',
-            'color: #FFF',
-            'padding: 20px',
-            'border: 1.5px solid #999',
-            'border-radius: 6px',
-            'max-width: 500px',
-            'width: 90%',
-            'box-shadow: 0 0 10px rgba(0,0,0,0.5)',
-            'font-family: sans-serif'
-        ].join('; ');
+        var modal = document.createElement('div');
+        modal.style.cssText = 'background: #232136CC; color: #FFF; padding: 20px; border: 1.5px solid #999; border-radius: 6px; max-width: 500px; width: 90%; box-shadow: 0 0 10px rgba(0,0,0,0.5); font-family: sans-serif;';
 
-        // Prevent clicks inside the modal from closing it
         modal.addEventListener('click', function(e) {
             e.stopPropagation();
         });
 
-        // Header
-        const header = document.createElement('h3');
+        var header = document.createElement('h3');
         header.style.cssText = 'margin: 0 0 15px 0; font-size: 1.1em;';
         header.textContent = 'Edit Link for "' + tag + '"';
         modal.appendChild(header);
 
-        // Input
-        const input = document.createElement('input');
+        var input = document.createElement('input');
         input.type = 'url';
         input.value = getTagLink(tag);
         input.placeholder = 'Enter URL...';
-        input.style.cssText = [
-            'width: 100%',
-            'padding: 8px',
-            'margin-bottom: 15px',
-            'border: 1px solid #999',
-            'border-radius: 3px',
-            'background: #2A273F',
-            'color: #FFF',
-            'box-sizing: border-box'
-        ].join('; ');
+        input.style.cssText = 'width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #999; border-radius: 3px; background: #2A273F; color: #FFF; box-sizing: border-box;';
         modal.appendChild(input);
 
-        // Buttons container
-        const buttonsContainer = document.createElement('div');
+        var buttonsContainer = document.createElement('div');
         buttonsContainer.style.cssText = 'display: flex; gap: 10px; justify-content: flex-end;';
         modal.appendChild(buttonsContainer);
 
-        // Save button
-        const saveButton = document.createElement('button');
+        var saveButton = document.createElement('button');
         saveButton.textContent = 'Save';
-        saveButton.style.cssText = [
-            'padding: 6px 12px',
-            'border: none',
-            'border-radius: 3px',
-            'background: #46446C',
-            'color: #FFF',
-            'cursor: pointer'
-        ].join('; ');
+        saveButton.style.cssText = 'padding: 6px 12px; border: none; border-radius: 3px; background: #46446C; color: #FFF; cursor: pointer;';
         saveButton.addEventListener('click', function() {
-            const newLink = input.value.trim();
+            var newLink = input.value.trim();
             if (newLink) {
                 setTagLink(tag, newLink);
                 if (callback) callback();
@@ -215,174 +165,128 @@
         });
         buttonsContainer.appendChild(saveButton);
 
-        // Cancel button
-        const cancelButton = document.createElement('button');
+        var cancelButton = document.createElement('button');
         cancelButton.textContent = 'Cancel';
-        cancelButton.style.cssText = [
-            'padding: 6px 12px',
-            'border: 1px solid #999',
-            'border-radius: 3px',
-            'background: transparent',
-            'color: #FFF',
-            'cursor: pointer'
-        ].join('; ');
+        cancelButton.style.cssText = 'padding: 6px 12px; border: 1px solid #999; border-radius: 3px; background: transparent; color: #FFF; cursor: pointer;';
         cancelButton.addEventListener('click', function() {
             overlay.remove();
         });
         buttonsContainer.appendChild(cancelButton);
 
-        // Reset button
-        const resetButton = document.createElement('button');
+        var resetButton = document.createElement('button');
         resetButton.textContent = 'Reset to Default';
-        resetButton.style.cssText = [
-            'padding: 6px 12px',
-            'border: 1px solid #999',
-            'border-radius: 3px',
-            'background: transparent',
-            'color: #FFF',
-            'cursor: pointer'
-        ].join('; ');
+        resetButton.style.cssText = 'padding: 6px 12px; border: 1px solid #999; border-radius: 3px; background: transparent; color: #FFF; cursor: pointer;';
         resetButton.addEventListener('click', function() {
-            const defaultLink = 'https://archiveofourown.org/tags/' + encodeURIComponent(tag) + '/works';
+            var defaultLink = 'https://archiveofourown.org/tags/' + encodeURIComponent(tag) + '/works';
             input.value = defaultLink;
         });
         buttonsContainer.appendChild(resetButton);
 
         overlay.appendChild(modal);
 
-        // Close on overlay click
         overlay.addEventListener('click', function() {
             overlay.remove();
         });
 
-        // Handle Enter key
         input.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 saveButton.click();
             }
         });
 
-        // Add to body and focus
         document.body.appendChild(overlay);
         input.focus();
         input.select();
     }
 
-    // Create tag manager UI
     function createTagManager(workInfo) {
-        const container = document.createElement('div');
+        var container = document.createElement('div');
         container.classList.add('personal-tags-container');
-        container.style.cssText = [
-            'margin: 15px 0',
-            'padding: 10px',
-            'border: 1.5px solid #999',
-            'border-radius: 5px',
-            'position: relative',
-            'max-width: 580px',
-            'margin-left: auto',
-            'margin-right: auto'
-        ].join('; ');
+        container.style.cssText = 'margin: 15px 0; padding: 10px; border: 1.5px solid #999; border-radius: 5px; position: relative; max-width: 580px; margin-left: auto; margin-right: auto;';
 
-        // Header
-        const header = document.createElement('div');
+        var header = document.createElement('div');
         header.style.cssText = 'font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 8px;';
         header.textContent = '📌 Personal Tags';
         container.appendChild(header);
 
-        // Tags display
-        const tagsDisplay = document.createElement('div');
+        var tagsDisplay = document.createElement('div');
         tagsDisplay.style.cssText = 'margin: 10px 0;';
         container.appendChild(tagsDisplay);
 
-        // Input container
-        const inputContainer = document.createElement('div');
+        var inputContainer = document.createElement('div');
         inputContainer.style.cssText = 'display: flex; gap: 5px; margin-top: 10px;';
         container.appendChild(inputContainer);
 
-        // Tag input
-        const tagInput = document.createElement('input');
+        var tagInput = document.createElement('input');
         tagInput.type = 'text';
         tagInput.placeholder = 'Add tag...';
         tagInput.style.cssText = 'flex: 1; padding: 5px; border: 1px solid #ccc; border-radius: 3px;';
         inputContainer.appendChild(tagInput);
 
-        // Add button
-        const addButton = document.createElement('button');
+        var addButton = document.createElement('button');
         addButton.textContent = 'Add Tag';
-        addButton.style.cssText = [
-            'padding: 5px 10px',
-            'border: none',
-            'border-radius: 3px',
-            'cursor: pointer'
-        ].join('; ');
+        addButton.style.cssText = 'padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;';
         inputContainer.appendChild(addButton);
 
-        // Suggestion box
-        const suggestionBox = document.createElement('div');
-        suggestionBox.style.cssText = [
-            'position: absolute',
-            'top: 100%',
-            'left: 0',
-            'width: 100%',
-            'background: #2A273F',
-            'border: 1px solid #999',
-            'border-radius: 3px',
-            'max-height: 150px',
-            'overflow-y: auto',
-            'z-index: 1000',
-            'display: none'
-        ].join('; ');
+        var suggestionBox = document.createElement('div');
+        suggestionBox.style.cssText = 'position: absolute; top: 100%; left: 0; width: 100%; background: #2A273F; border: 1px solid #999; border-radius: 3px; max-height: 150px; overflow-y: auto; z-index: 1000; display: none;';
         container.appendChild(suggestionBox);
 
-        // Helper: get all used tags
         function getAllUsedTags() {
-            const allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
-            const tagsSet = new Set();
-            Object.values(allTags).forEach(function(workTags) {
-                workTags.forEach(function(tag) {
-                    tagsSet.add(tag);
-                });
-            });
-            return Array.from(tagsSet).sort();
+            var allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
+            var tagsArray = [];
+            var workTags, i, j;
+            for (var workId in allTags) {
+                workTags = allTags[workId];
+                for (i = 0; i < workTags.length; i++) {
+                    if (tagsArray.indexOf(workTags[i]) === -1) {
+                        tagsArray.push(workTags[i]);
+                    }
+                }
+            }
+            return tagsArray.sort();
         }
 
-        // Display existing tags
         function updateTagsDisplay() {
-            const tags = getPersonalTags(workInfo.id);
+            var tags = getPersonalTags(workInfo.id);
             if (!tags.length) {
                 tagsDisplay.innerHTML = '<em style="color: #999;">No personal tags yet</em>';
                 return;
             }
 
-            tagsDisplay.innerHTML = tags.map(function(tag) {
-                return '<span style="display: inline-block; margin: 2px; padding: 3px 8px; border: 1px solid #999; border-radius: 3px; font-size: 0.9em; background-color: #2A273F;">' +
-                    tag +
-                    '<button data-tag="' + tag + '" style="margin-left: 5px; background: none; border: none; cursor: pointer; font-weight: bold;" title="Remove tag">×</button>' +
+            var html = '';
+            for (var i = 0; i < tags.length; i++) {
+                html += '<span style="display: inline-block; margin: 2px; padding: 3px 8px; border: 1px solid #999; border-radius: 3px; font-size: 0.9em; background-color: #2A273F;">' +
+                    tags[i] +
+                    '<button data-tag="' + tags[i] + '" style="margin-left: 5px; background: none; border: none; cursor: pointer; font-weight: bold;" title="Remove tag">×</button>' +
                 '</span>';
-            }).join('');
+            }
+            tagsDisplay.innerHTML = html;
 
-            // Add delete functionality
-            tagsDisplay.querySelectorAll('button').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    const tagToDelete = btn.dataset.tag;
-                    const currentTags = getPersonalTags(workInfo.id);
-                    const newTags = currentTags.filter(function(t) {
-                        return t !== tagToDelete;
-                    });
+            var buttons = tagsDisplay.querySelectorAll('button');
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].addEventListener('click', function() {
+                    var tagToDelete = this.dataset.tag;
+                    var currentTags = getPersonalTags(workInfo.id);
+                    var newTags = [];
+                    for (var j = 0; j < currentTags.length; j++) {
+                        if (currentTags[j] !== tagToDelete) {
+                            newTags.push(currentTags[j]);
+                        }
+                    }
                     savePersonalTags(workInfo.id, newTags);
                     removeWorkFromTag(tagToDelete, workInfo.id);
                     updateTagsDisplay();
                 });
-            });
+            }
         }
 
-        // Add tag function
         function addTag() {
-            const newTag = tagInput.value.trim();
+            var newTag = tagInput.value.trim();
             if (!newTag) return;
 
-            const currentTags = getPersonalTags(workInfo.id);
-            if (!currentTags.includes(newTag)) {
+            var currentTags = getPersonalTags(workInfo.id);
+            if (currentTags.indexOf(newTag) === -1) {
                 currentTags.push(newTag);
                 savePersonalTags(workInfo.id, currentTags);
                 addWorkToTag(newTag, workInfo);
@@ -393,14 +297,14 @@
             suggestionBox.style.display = 'none';
         }
 
-        // Add tag button click
         addButton.addEventListener('click', addTag);
 
-        // Enter key support for adding tags
+        var selectedIndex = -1;
+
         tagInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const suggestions = suggestionBox.querySelectorAll('.suggestion-item');
+                var suggestions = suggestionBox.querySelectorAll('.suggestion-item');
                 if (selectedIndex >= 0 && suggestions[selectedIndex]) {
                     suggestions[selectedIndex].click();
                 } else {
@@ -409,58 +313,61 @@
             }
         });
 
-        // Autocomplete suggestions with keyboard navigation
-        var selectedIndex = -1;
-
         tagInput.addEventListener('input', function() {
-            const query = tagInput.value.toLowerCase();
-            const usedTags = getAllUsedTags().filter(function(t) {
-                return t.toLowerCase().startsWith(query) && t.toLowerCase() !== query;
-            });
+            var query = tagInput.value.toLowerCase();
+            var usedTags = getAllUsedTags();
+            var filteredTags = [];
+
+            for (var i = 0; i < usedTags.length; i++) {
+                if (usedTags[i].toLowerCase().indexOf(query) === 0 && usedTags[i].toLowerCase() !== query) {
+                    filteredTags.push(usedTags[i]);
+                }
+            }
+
             selectedIndex = -1;
 
-            if (query && usedTags.length) {
+            if (query && filteredTags.length) {
                 suggestionBox.innerHTML = '';
-                usedTags.forEach(function(tag, index) {
-                    const item = document.createElement('div');
-                    item.textContent = tag;
+                for (var i = 0; i < filteredTags.length; i++) {
+                    var item = document.createElement('div');
+                    item.textContent = filteredTags[i];
                     item.className = 'suggestion-item';
-                    item.dataset.index = index;
+                    item.dataset.index = i;
                     item.style.cssText = 'padding: 5px 10px; cursor: pointer;';
 
                     item.addEventListener('mouseover', function() {
-                        // Clear previous selection
-                        suggestionBox.querySelectorAll('.suggestion-item').forEach(function(el) {
-                            el.style.background = '#2A273F';
-                        });
-                        // Highlight hovered item
-                        item.style.background = '#46446C';
-                        selectedIndex = index;
+                        var suggestions = suggestionBox.querySelectorAll('.suggestion-item');
+                        for (var j = 0; j < suggestions.length; j++) {
+                            suggestions[j].style.background = '#2A273F';
+                        }
+                        this.style.background = '#46446C';
+                        selectedIndex = parseInt(this.dataset.index);
                     });
 
                     item.addEventListener('mouseleave', function() {
-                        item.style.background = '#2A273F';
+                        this.style.background = '#2A273F';
                         selectedIndex = -1;
                     });
 
-                    item.addEventListener('click', function() {
-                        // Add the tag directly
-                        const currentTags = getPersonalTags(workInfo.id);
-                        if (!currentTags.includes(tag)) {
-                            currentTags.push(tag);
-                            savePersonalTags(workInfo.id, currentTags);
-                            addWorkToTag(tag, workInfo);
-                            updateTagsDisplay();
-                        }
+                    (function(tag) {
+                        item.addEventListener('click', function() {
+                            var currentTags = getPersonalTags(workInfo.id);
+                            if (currentTags.indexOf(tag) === -1) {
+                                currentTags.push(tag);
+                                savePersonalTags(workInfo.id, currentTags);
+                                addWorkToTag(tag, workInfo);
+                                updateTagsDisplay();
+                            }
 
-                        // Clear input and hide suggestions
-                        tagInput.value = '';
-                        suggestionBox.style.display = 'none';
-                        selectedIndex = -1;
-                        tagInput.focus();
-                    });
+                            tagInput.value = '';
+                            suggestionBox.style.display = 'none';
+                            selectedIndex = -1;
+                            tagInput.focus();
+                        });
+                    })(filteredTags[i]);
+
                     suggestionBox.appendChild(item);
-                });
+                }
                 suggestionBox.style.display = 'block';
             } else {
                 suggestionBox.style.display = 'none';
@@ -468,40 +375,33 @@
             }
         });
 
-        // Add keyboard navigation
         tagInput.addEventListener('keydown', function(e) {
-            const suggestions = suggestionBox.querySelectorAll('.suggestion-item');
+            var suggestions = suggestionBox.querySelectorAll('.suggestion-item');
 
             if (suggestions.length === 0) return;
 
-            switch(e.key) {
-                case 'ArrowDown':
-                    e.preventDefault();
-                    selectedIndex = Math.min(selectedIndex + 1, suggestions.length - 1);
-                    updateSelection(suggestions);
-                    break;
-
-                case 'ArrowUp':
-                    e.preventDefault();
-                    selectedIndex = Math.max(selectedIndex - 1, -1);
-                    updateSelection(suggestions);
-                    break;
-
-                case 'Escape':
-                    suggestionBox.style.display = 'none';
-                    selectedIndex = -1;
-                    break;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, suggestions.length - 1);
+                updateSelection(suggestions);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection(suggestions);
+            } else if (e.key === 'Escape') {
+                suggestionBox.style.display = 'none';
+                selectedIndex = -1;
             }
         });
 
         function updateSelection(suggestions) {
-            suggestions.forEach(function(item, index) {
-                if (index === selectedIndex) {
-                    item.style.background = '#46446C';
+            for (var i = 0; i < suggestions.length; i++) {
+                if (i === selectedIndex) {
+                    suggestions[i].style.background = '#46446C';
                 } else {
-                    item.style.background = '#2A273F';
+                    suggestions[i].style.background = '#2A273F';
                 }
-            });
+            }
         }
 
         tagInput.addEventListener('blur', function() {
@@ -515,177 +415,249 @@
         return container;
     }
 
-    // Add personal tags to work page
     function addTagsToWorkPage() {
-        const workInfo = getWorkInfo();
+        var workInfo = getWorkInfo();
         if (!workInfo) return;
 
-        const workMeta = document.querySelector('.work.meta') || document.querySelector('dl.work.meta.group');
+        var workMeta = document.querySelector('.work.meta') || document.querySelector('dl.work.meta.group');
         if (!workMeta) return;
 
-        const tagManager = createTagManager(workInfo);
+        var tagManager = createTagManager(workInfo);
         workMeta.parentElement.insertBefore(tagManager, workMeta.nextSibling);
     }
 
-    // Add personal works to tag listing pages
-    function addPersonalWorksToTagPage() {
-        try {
-            var match = window.location.pathname.match(/\/tags\/([^\/]+)/);
-            const currentTag = match ? decodeURIComponent(match[1]) : '';
-            if (!currentTag) return;
+function addPersonalWorksToTagPage() {
+    try {
+        var currentUrl = window.location.href;
+        var match = window.location.pathname.match(/\/tags\/([^\/]+)/);
+        var currentTag = match ? decodeURIComponent(match[1]) : '';
+        if (!currentTag) return;
 
-            const tagLookup = getTagLookup();
-            const normalizedCurrentTag = normalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' '));
-            const personalWorks = tagLookup[normalizedCurrentTag];
+        var tagLookup = getTagLookup();
+        var tagLinks = getTagLinks();
 
-            if (!personalWorks || Object.keys(personalWorks).length === 0) {
+        console.log('Current URL:', currentUrl);
+        console.log('Current tag:', currentTag);
+
+        // Find all tags that should be displayed on this page
+        var tagsToShow = [];
+
+        // Check if this is a direct tag match
+        var normalizedCurrentTag = normalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' '));
+        if (tagLookup[normalizedCurrentTag]) {
+            var defaultLink = 'https://archiveofourown.org/tags/' + encodeURIComponent(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')) + '/works';
+            var tagHasCustomLink = tagLinks[normalizedCurrentTag] && tagLinks[normalizedCurrentTag] !== defaultLink;
+
+            tagsToShow.push({
+                normalizedTag: normalizedCurrentTag,
+                displayName: capitalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')),
+                works: tagLookup[normalizedCurrentTag],
+                hasCustomLink: tagHasCustomLink,
+                isDirect: true
+            });
+        }
+
+        // Check for tags with custom links pointing to this page
+        for (var normalizedTag in tagLinks) {
+            var customLink = tagLinks[normalizedTag];
+
+            var urlsMatch = customLink === currentUrl ||
+                           customLink === window.location.href ||
+                           customLink === (window.location.protocol + '//' + window.location.host + window.location.pathname + window.location.search) ||
+                           customLink === (window.location.protocol + '//' + window.location.host + window.location.pathname);
+
+            if (urlsMatch && tagLookup[normalizedTag]) {
+                // Check if we already added this tag
+                var alreadyAdded = false;
+                for (var i = 0; i < tagsToShow.length; i++) {
+                    if (tagsToShow[i].normalizedTag === normalizedTag) {
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyAdded) {
+                    var works = tagLookup[normalizedTag];
+                    var workIds = Object.keys(works);
+                    var firstWork = workIds.length > 0 ? works[workIds[0]] : null;
+                    var originalTagName = firstWork ? firstWork.originalTag : capitalizeTag(normalizedTag);
+
+                    tagsToShow.push({
+                        normalizedTag: normalizedTag,
+                        displayName: originalTagName,
+                        works: works,
+                        hasCustomLink: true,
+                        isDirect: false
+                    });
+                }
+            }
+        }
+
+        console.log('Tags to show:', tagsToShow);
+
+        if (tagsToShow.length === 0) {
+            console.log('No tags to show');
+            return;
+        }
+
+        // Wait for page to load, then insert our content
+        setTimeout(function() {
+            // Find the works list
+            var worksList = document.querySelector('ol.work.index.group') ||
+                           document.querySelector('#main ol.index.group') ||
+                           document.querySelector('#main .index.group') ||
+                           document.querySelector('ol.work.index');
+
+            if (!worksList) {
+                console.log('Works list not found');
                 return;
             }
 
-            setTimeout(function() {
-                const worksList = document.querySelector('ol.work.index.group') ||
-                                 document.querySelector('#main ol.index.group') ||
-                                 document.querySelector('#main .index.group') ||
-                                 document.querySelector('ol.work.index');
+            // Remove existing personal tags section if it exists
+            var existingSection = document.querySelector('#personal-tags-section');
+            if (existingSection) {
+                existingSection.remove();
+            }
 
-                if (!worksList) return;
-                if (document.querySelector('#personal-tags-section')) return;
+            // Create main container for all personal tag sections
+            var mainContainer = document.createElement('div');
+            mainContainer.id = 'personal-tags-section';
+            mainContainer.style.cssText = 'margin: 15px 0;';
 
-                const personalSection = document.createElement('div');
-                personalSection.id = 'personal-tags-section';
-                personalSection.style.cssText = [
-                    'margin: 15px 0',
-                    'padding: 5px',
-                    'border: 1px solid',
-                    'border-radius: 5px',
-                    'overflow: hidden'
-                ].join('; ');
+            // Create each tag section
+            for (var i = 0; i < tagsToShow.length; i++) {
+                var tagInfo = tagsToShow[i];
 
-                const sectionHeader = document.createElement('h4');
-                sectionHeader.style.cssText = [
-                    'margin: 0',
-                    'padding: 10px',
-                    'cursor: pointer',
-                    'display: flex',
-                    'justify-content: space-between',
-                    'align-items: center'
-                ].join('; ');
+                // Create section container - using the simpler GitHub styling
+                var section = document.createElement('div');
+                section.style.cssText = 'margin: 15px 0; padding: 5px; border: 1px solid; border-radius: 5px; overflow: hidden;';
 
-                const headerText = document.createElement('span');
-                headerText.textContent = '📌 Your Personal "' + capitalizeTag(currentTag.replace(/%20/g, ' ').replace(/_/g, ' ')) + '" Tags';
+                // Create section header
+                var header = document.createElement('h4');
+                header.style.cssText = 'margin: 0; padding: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;';
 
-                const toggleIndicator = document.createElement('span');
+                var headerText = document.createElement('span');
+                headerText.textContent = '📌 Your Personal "' + tagInfo.displayName + '" Tags';
+
+                var toggleIndicator = document.createElement('span');
                 toggleIndicator.textContent = '▼';
-                toggleIndicator.style.cssText = [
-                    'font-size: 0.8em',
-                    'transition: transform 0.2s',
-                    'transform: rotate(-90deg)'
-                ].join('; ');
+                toggleIndicator.style.cssText = 'font-size: 0.8em; transition: transform 0.2s; transform: rotate(-90deg);';
 
-                sectionHeader.appendChild(headerText);
-                sectionHeader.appendChild(toggleIndicator);
+                header.appendChild(headerText);
+                header.appendChild(toggleIndicator);
 
-                const contentContainer = document.createElement('div');
-                contentContainer.style.cssText = [
-                    'padding: 0 10px',
-                    'max-height: 0',
-                    'overflow: hidden',
-                    'transition: max-height 0.3s ease, padding 0.3s ease'
-                ].join('; ');
+                // Create content container (initially collapsed) - using simpler GitHub styling
+                var content = document.createElement('div');
+                content.style.cssText = 'padding: 0 10px; max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease;';
 
-                personalSection.appendChild(sectionHeader);
-                personalSection.appendChild(contentContainer);
+                // Create works list
+                var worksContainer = document.createElement('div');
+                worksContainer.style.cssText = 'margin: 15px 0;';
 
-                Object.keys(personalWorks).forEach(function(workId) {
-                    const info = personalWorks[workId];
-                    const workItem = document.createElement('div');
-                    workItem.style.cssText = [
-                        'margin: 10px 0',
-                        'padding: 8px',
-                        'border-left: 3px solid'
-                    ].join('; ');
+                var works = tagInfo.works;
+                var workIds = Object.keys(works);
 
-                    workItem.innerHTML = '<h4 style="margin: 0 0 5px 0;"><a href="/works/' + workId + '">' + info.title + '</a></h4>' +
-                        '<p style="margin: 0; color: #999; font-size: 0.9em;">by ' + info.author + '</p>' +
-                        (info.summary ? '<p style="margin: 5px 0 0 0; font-size: 0.85em;">' + info.summary + '</p>' : '');
-                    contentContainer.appendChild(workItem);
-                });
+                if (workIds.length === 0) {
+                    worksContainer.innerHTML = '<div style="padding: 15px; color: #999; font-style: italic; text-align: center;">No works found for this tag.</div>';
+                } else {
+                    for (var j = 0; j < workIds.length; j++) {
+                        var workId = workIds[j];
+                        var work = works[workId];
 
-                var isExpanded = false;
-                sectionHeader.addEventListener('click', function() {
-                    if (isExpanded) {
-                        contentContainer.style.maxHeight = '0';
-                        contentContainer.style.padding = '0 15px';
-                        toggleIndicator.style.transform = 'rotate(-90deg)';
-                        isExpanded = false;
-                    } else {
-                        contentContainer.style.maxHeight = contentContainer.scrollHeight + 'px';
-                        contentContainer.style.padding = '15px';
-                        toggleIndicator.style.transform = 'rotate(0deg)';
-                        isExpanded = true;
+                        var workItem = document.createElement('div');
+                        workItem.style.cssText = 'margin: 10px 0; padding: 8px; border-left: 3px solid;';
+
+                        workItem.innerHTML = '<h4 style="margin: 0 0 5px 0;"><a href="/works/' + workId + '">' + (work.title || 'Untitled Work') + '</a></h4>' +
+                            (work.author && work.author.trim() ? '<p style="margin: 0; color: #999; font-size: 0.9em;">by ' + work.author + '</p>' : '') +
+                            (work.summary && work.summary.trim() ? '<p style="margin: 5px 0 0 0; font-size: 0.85em;">' + (work.summary.length > 250 ? work.summary.substring(0, 250) + '...' : work.summary) + '</p>' : '');
+
+                        worksContainer.appendChild(workItem);
                     }
-                });
+                }
 
-                worksList.parentElement.insertBefore(personalSection, worksList);
-            }, 500);
-        } catch (error) {
-            console.log('Error adding personal works to tag page:', error);
-        }
+                content.appendChild(worksContainer);
+
+                // Set up toggle functionality
+                var isExpanded = false;
+                (function(contentEl, indicator) {
+                    header.addEventListener('click', function() {
+                        if (isExpanded) {
+                            contentEl.style.maxHeight = '0';
+                            contentEl.style.padding = '0 10px';
+                            indicator.style.transform = 'rotate(-90deg)';
+                            isExpanded = false;
+                        } else {
+                            contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
+                            contentEl.style.padding = '15px';
+                            indicator.style.transform = 'rotate(0deg)';
+                            isExpanded = true;
+                        }
+                    });
+                })(content, toggleIndicator);
+
+                // Assemble the section
+                section.appendChild(header);
+                section.appendChild(content);
+                mainContainer.appendChild(section);
+            }
+
+            // Insert the main container before the works list
+            try {
+                var parentElement = worksList.parentElement;
+                if (parentElement) {
+                    parentElement.insertBefore(mainContainer, worksList);
+                    console.log('Personal tags sections inserted successfully');
+                } else {
+                    console.log('Could not find parent element for works list');
+                }
+            } catch (error) {
+                console.error('Error inserting personal tags sections:', error);
+                // Fallback: try to append to a common container
+                var mainContent = document.querySelector('#main') || document.querySelector('.content');
+                if (mainContent) {
+                    mainContent.insertBefore(mainContainer, mainContent.firstChild);
+                }
+            }
+
+        }, 500);
+
+    } catch (error) {
+        console.error('Error in addPersonalWorksToTagPage:', error);
     }
+}
 
-    // Show personal tags modal
     function showPersonalTagsModal() {
-        const allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
-        const tagsSet = new Set();
-        Object.values(allTags).forEach(function(workTags) {
-            workTags.forEach(function(tag) {
-                tagsSet.add(tag);
-            });
-        });
-        const sortedTags = Array.from(tagsSet).sort();
+        var allTags = JSON.parse(localStorage.getItem(KEYS.PERSONAL_TAGS) || '{}');
+        var tagsArray = [];
+
+        for (var workId in allTags) {
+            var workTags = allTags[workId];
+            for (var i = 0; i < workTags.length; i++) {
+                if (tagsArray.indexOf(workTags[i]) === -1) {
+                    tagsArray.push(workTags[i]);
+                }
+            }
+        }
+        var sortedTags = tagsArray.sort();
 
         if (sortedTags.length === 0) {
             alert('No personal tags found.');
             return;
         }
 
-        const existingModal = document.querySelector('#personal-tags-modal');
+        var existingModal = document.querySelector('#personal-tags-modal');
         if (existingModal) existingModal.remove();
 
-        const overlay = document.createElement('div');
+        var overlay = document.createElement('div');
         overlay.id = 'personal-tags-modal';
-        overlay.style.cssText = [
-            'position: fixed',
-            'top: 0',
-            'left: 0',
-            'width: 100%',
-            'height: 100%',
-            'background: rgba(0,0,0,0.5)',
-            'display: flex',
-            'align-items: center',
-            'justify-content: center',
-            'z-index: 9999'
-        ].join('; ');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;';
 
         overlay.addEventListener('click', function() {
             overlay.remove();
         });
 
-        const modal = document.createElement('div');
-        modal.style.cssText = [
-            'background: #232136CC',
-            'color: #FFF',
-            'padding: 20px',
-            'border: 1.5px solid #999',
-            'border-radius: 6px',
-            'max-width: 600px',
-            'width: 90%',
-            'max-height: 80%',
-            'overflow-y: auto',
-            'box-shadow: 0 0 10px rgba(0,0,0,0.5)',
-            'position: relative',
-            'font-family: sans-serif'
-        ].join('; ');
+        var modal = document.createElement('div');
+        modal.style.cssText = 'background: #232136CC; color: #FFF; padding: 20px; border: 1.5px solid #999; border-radius: 6px; max-width: 600px; width: 90%; max-height: 80%; overflow-y: auto; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: relative; font-family: sans-serif;';
 
         modal.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -693,105 +665,77 @@
 
         overlay.appendChild(modal);
 
-        const header = document.createElement('div');
-        header.style.cssText = [
-            'font-weight: bold',
-            'font-size: 1.2em',
-            'margin-bottom: 15px',
-            'border-bottom: 1px solid #555',
-            'padding-bottom: 8px'
-        ].join('; ');
+        var header = document.createElement('div');
+        header.style.cssText = 'font-weight: bold; font-size: 1.2em; margin-bottom: 15px; border-bottom: 1px solid #555; padding-bottom: 8px;';
         header.textContent = '📌 Your Personal Tags';
         modal.appendChild(header);
 
-        const content = document.createElement('div');
+        var content = document.createElement('div');
         content.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;';
 
-        sortedTags.forEach(function(tag) {
-            const tagContainer = document.createElement('div');
-            tagContainer.style.cssText = [
-                'display: inline-flex',
-                'align-items: center',
-                'padding: 4px 8px',
-                'background: #44415a40',
-                'border-radius: 4px',
-                'gap: 6px',
-                'transition: background-color 0.2s'
-            ].join('; ');
+        for (var i = 0; i < sortedTags.length; i++) {
+            var tag = sortedTags[i];
+            var tagContainer = document.createElement('div');
+            tagContainer.style.cssText = 'display: inline-flex; align-items: center; padding: 4px 8px; background: #44415a40; border-radius: 4px; gap: 6px; transition: background-color 0.2s;';
 
-            const tagEl = document.createElement('a');
+            var tagEl = document.createElement('a');
             tagEl.textContent = tag;
             tagEl.href = getTagLink(tag);
             tagEl.target = '_blank';
-            tagEl.style.cssText = [
-                'cursor: pointer',
-                'font-size: 0.95em',
-                'text-decoration: none',
-                'color: inherit',
-                'transition: color 0.2s'
-            ].join('; ');
+            tagEl.style.cssText = 'cursor: pointer; font-size: 0.95em; text-decoration: none; color: inherit; transition: color 0.2s;';
 
-            const editButton = document.createElement('button');
+            var editButton = document.createElement('button');
             editButton.innerHTML = '⚙️';
             editButton.title = 'Edit custom link for "' + tag + '"';
-            editButton.style.cssText = [
-                'background: none',
-                'border: none',
-                'color: #bbb',
-                'cursor: pointer',
-                'font-size: 12px',
-                'padding: 2px',
-                'line-height: 1',
-                'transition: all 0.2s'
-            ].join('; ');
+            editButton.style.cssText = 'background: none; border: none; color: #bbb; cursor: pointer; font-size: 12px; padding: 2px; line-height: 1; transition: all 0.2s;';
 
             editButton.addEventListener('mouseenter', function() {
-                editButton.style.color = '#fff';
-                editButton.style.transform = 'scale(1.1)';
+                this.style.color = '#fff';
+                this.style.transform = 'scale(1.1)';
             });
 
             editButton.addEventListener('mouseleave', function() {
-                editButton.style.color = '#bbb';
-                editButton.style.transform = 'scale(1)';
+                this.style.color = '#bbb';
+                this.style.transform = 'scale(1)';
             });
 
-            editButton.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                showLinkEditor(tag, function() {
-                    // Refresh the tag link
-                    tagEl.href = getTagLink(tag);
+            (function(tagName, linkElement) {
+                editButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showLinkEditor(tagName, function() {
+                        linkElement.href = getTagLink(tagName);
+                    });
                 });
-            });
+            })(tag, tagEl);
 
             tagContainer.appendChild(tagEl);
             tagContainer.appendChild(editButton);
 
             tagContainer.addEventListener('mouseenter', function() {
-                tagContainer.style.backgroundColor = '#232136CC';
+                this.style.backgroundColor = '#232136CC';
             });
 
             tagContainer.addEventListener('mouseleave', function() {
-                tagContainer.style.backgroundColor = '#44415a40';
+                this.style.backgroundColor = '#44415a40';
             });
 
             content.appendChild(tagContainer);
-        });
+        }
         modal.appendChild(content);
 
         document.body.appendChild(overlay);
     }
 
-    // Add navigation button
     function addPersonalTagsButton() {
-        const nav = document.querySelector("ul.primary.navigation.actions") ||
-                   document.querySelector("ul.primary.navigation") ||
-                   document.querySelector("nav ul");
+        var nav = document.querySelector("ul.primary.navigation.actions") ||
+                 document.querySelector("ul.primary.navigation") ||
+                 document.querySelector("nav ul");
 
         if (!nav) return;
         if (document.querySelector("#personal-tags-btn")) return;
 
-        const personalTagsLi = document.createElement("li");
+        var personalTagsLi = document.createElement("li");
         personalTagsLi.innerHTML = '<a href="#" id="personal-tags-btn">Personal Tags</a>';
         nav.appendChild(personalTagsLi);
 
@@ -801,9 +745,8 @@
         });
     }
 
-    // Initialize based on page type
     function init() {
-        const path = window.location.pathname;
+        var path = window.location.pathname;
 
         if (path.match(/\/works\/\d+/)) {
             addTagsToWorkPage();
@@ -814,7 +757,6 @@
         addPersonalTagsButton();
     }
 
-    // Wait for page to load
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
