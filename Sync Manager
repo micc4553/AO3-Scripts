@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Sync Manager
-// @version      2.1.1
+// @version      2.1.2
 // @description  Sync AO3 tagging and notes data across devices using Google Apps Script
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -186,6 +186,8 @@ static saveDeletedTagLookupTags(v) { this.save('ao3_deleted_tag_lookup_tags', v)
             this.isSyncing = false;
             this.syncTimer = null;
             this.timeUntilNextSync = 0;
+
+            window.syncManager = this;
 
             if (this.settings.enabled && this.settings.sheetUrl) {
                 this.initSync();
@@ -523,7 +525,7 @@ function trackDeletedTag(tagName) {
 
         const modal = UI.createModal(`
 <div style="margin:15px 0;display:flex;gap:10px;width:100%;">
-    <button id="clear-old-deletions" style="background:#a85c6b;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Clear Deletions</button>
+    <button id="clear-old-deletions" style="background:#8b7355;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Clear Deletions</button>
     <button id="export-data" style="background:#7a9bb8;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Export Data</button>
     <button id="import-data" style="background:#8b7db8;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;flex-grow:1;flex-basis:auto;">Import Data</button>
     <input type="file" id="import-file" accept=".json" style="display:none;">
@@ -553,7 +555,7 @@ function trackDeletedTag(tagName) {
 
 <div style="display:flex;gap:10px;margin-top:20px;">
     <button id="save-settings" style="background:#6b8a7a;color:white;border:none;padding:4px 16px;border-radius:4px;cursor:pointer;flex:1;">Save Settings</button>
-    <button id="close-settings" style="background:#8b7355;color:white;border:none;padding:4px 16px;border-radius:4px;cursor:pointer;flex:1;">Close</button>
+    <button id="close-settings" style="background:#a85c6b;color:white;border:none;padding:4px 16px;border-radius:4px;cursor:pointer;flex:1;">Close</button>
 </div>
             </div>
         `, "Sync Settings");
@@ -566,49 +568,60 @@ function trackDeletedTag(tagName) {
         });
 
         // Event listeners
-        modal.querySelector("#clear-old-deletions").addEventListener("click", () => {
-    const daysOld = prompt("Clear deletions older than how many days? (default: 30)", "30");
-    if (!daysOld) return;
+modal.querySelector("#clear-old-deletions").addEventListener("click", async () => {
+    // Create modal that blocks clicks during sync
+    const progressModal = document.createElement("div");
+    progressModal.innerHTML = `
+        <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100001;display:flex;align-items:center;justify-content:center;">
+            <div style="background:#232136CC;color:#fff;padding:30px;border-radius:8px;text-align:center;min-width:250px;">
+                <div>Syncing...</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(progressModal);
 
-    const cleanupAge = parseInt(daysOld) * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-
-    const deletedNotes = Storage.loadDeletedNotes();
-    const deletedAuthorNotes = Storage.loadDeletedAuthorNotes();
-    const deletedLabels = Storage.loadDeletedLabels();
-
-    let cleared = 0;
-
-    // Clean deleted notes
-    Object.keys(deletedNotes).forEach(id => {
-        if (now - deletedNotes[id] > cleanupAge) {
-            delete deletedNotes[id];
-            cleared++;
+    try {
+        // Force sync first
+        if (window.syncManager && !window.syncManager.isSyncing) {
+            await window.syncManager.performSync();
         }
-    });
 
-    // Clean deleted author notes
-    Object.keys(deletedAuthorNotes).forEach(id => {
-        if (now - deletedAuthorNotes[id] > cleanupAge) {
-            delete deletedAuthorNotes[id];
-            cleared++;
-        }
-    });
+        const deletedNotes = Storage.loadDeletedNotes();
+        const deletedAuthorNotes = Storage.loadDeletedAuthorNotes();
+        const deletedLabels = Storage.loadDeletedLabels();
+        const totalCleared = Object.keys(deletedNotes).length +
+                            Object.keys(deletedAuthorNotes).length +
+                            Object.keys(deletedLabels).length;
 
-    // Clean deleted labels
-    Object.keys(deletedLabels).forEach(id => {
-        if (now - deletedLabels[id] > cleanupAge) {
-            delete deletedLabels[id];
-            cleared++;
-        }
-    });
+        Storage.saveDeletedNotes({});
+        Storage.saveDeletedAuthorNotes({});
+        Storage.saveDeletedLabels({});
 
-    Storage.saveDeletedNotes(deletedNotes);
-    Storage.saveDeletedAuthorNotes(deletedAuthorNotes);
-    Storage.saveDeletedLabels(deletedLabels);
+        // Update the innermost div content
+        const innerDiv = progressModal.querySelector('div div div');
+        innerDiv.innerHTML = `
+            <div style="margin-bottom:20px;">Cleared all ${totalCleared} deletion records.</div>
+            <button id="close-clear-modal" style="background:#4CAF50;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">OK</button>
+        `;
 
-    alert(`Cleared ${cleared} old deletion records older than ${daysOld} days.`);
+        // Add click listener to the OK button
+        innerDiv.querySelector('#close-clear-modal').addEventListener('click', () => {
+            progressModal.remove();
+        });
+
+    } catch (error) {
+        const innerDiv = progressModal.querySelector('div div div');
+        innerDiv.innerHTML = `
+            <div style="margin-bottom:20px;">Error: ${error.message}</div>
+            <button id="close-error-modal" style="background:#f44336;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">OK</button>
+        `;
+
+        innerDiv.querySelector('#close-error-modal').addEventListener('click', () => {
+            progressModal.remove();
+        });
+    }
 });
+
       modal.querySelector("#save-settings").addEventListener("click", () => {
             const newSettings = {
                 ...settings,
