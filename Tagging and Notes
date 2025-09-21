@@ -24,18 +24,24 @@
         METADATA_CACHE: "ao3_metadata_cache"
     };
 
-    const PRESET_TAGS = ["Finished", "To Read", "Not Interested", "Dropped", "Disliked", "Favourite", "Dish"];
     const COLLAPSE_TAGS = ["Finished", "Not Interested", "Dropped", "Disliked"];
-    const BORDER_TAGS = ["To Read", "Favourite", "Dish"];
-    const TAG_COLORS = {
-        Finished: { bg: "#8b7db8", text: "#fff" },
-        "To Read": { bg: "#6b8a7a", text: "#fff" },
-        "Not Interested": { bg: "#6e6a86", text: "#fff" },
-        Dropped: { bg: "#7a9bb8", text: "#fff" },
-        Disliked: { bg: "#8b7355", text: "#fff" },
-        Favourite: { bg: "#d6a5c9", text: "#fff" },
-        Dish: { bg: "#a85c6b", text: "#fff" },
-    };
+    const BORDER_TAGS = ["To Read", "Liked", "Favourite", "Dish"];
+const TAG_CONFIG = {
+    "Finished": { bg: "#8b7db8", text: "#fff" },
+    "To Read": { bg: "#6b8a7a", text: "#fff" },
+    "Not Interested": { bg: "#6e6a86", text: "#fff" },
+    "Dropped": { bg: "#7a9bb8", text: "#fff" },
+    "Disliked": { bg: "#8b7355", text: "#fff" },
+    "Liked": { bg: "#cbb974", text: "#fff" },
+    "Favourite": { bg: "#d6a5c9", text: "#fff" },
+    "Dish": { bg: "#a85c6b", text: "#fff" }
+};
+
+// Derive other objects from TAG_CONFIG
+const PRESET_TAGS = Object.keys(TAG_CONFIG);
+const TAG_COLORS = Object.fromEntries(
+    Object.entries(TAG_CONFIG).map(([tag, config]) => [tag, { bg: config.bg, text: config.text }])
+);
 
     // Utility Functions - Consolidated
     class Storage {
@@ -294,7 +300,7 @@ if (target.matches(".download-tag-btn") || target.closest(".download-tag-btn")) 
                 const item = target.closest(".author-notes-item");
                 item.style.background = "#232136CC";
                 item.style.transform = "translateY(-1px)";
-                item.style.boxShadow = "0 0 12px 3px #cbb97477";
+                item.style.boxShadow = "0 0 12px 3px #e5988877";
             }
         }
 
@@ -327,7 +333,7 @@ if (target.matches(".download-tag-btn") || target.closest(".download-tag-btn")) 
                 const item = target.closest(".author-notes-item");
                 item.style.background = "#44415a40";
                 item.style.transform = "";
-                item.style.boxShadow = "0 0 8px 2px #cbb97455";
+                item.style.boxShadow = "0 0 8px 2px #e5988855";
             }
         }
 
@@ -587,20 +593,21 @@ async handleRefreshFic(button) {
             // Highlight active
             const activeBtn = this.currentSort === 'author-date' ? dateBtn : nameBtn;
             if (activeBtn) {
-                activeBtn.style.background = '#cbb974';
+                activeBtn.style.background = '#e59888';
                 activeBtn.style.color = '#fff';
-                activeBtn.style.boxShadow = '0 0 8px 2px #cbb97455';
+                activeBtn.style.boxShadow = '0 0 8px 2px #e5988855';
             }
         }
 
 updateWorksDisplay() {
-    const worksList = this.workData.map(({ ficId, workId, metadata, note, summary }) => {
+        const color = TAG_COLORS[this.currentTag] || { bg: "#6e6a86", text: "#fff" };
+  const worksList = this.workData.map(({ ficId, workId, metadata, note, summary }) => {
         return `
             <div class="work-item" data-fic-id="${ficId}"
                  style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;
                         border:1px solid #ddd;position:relative;">
                 <div style="margin-bottom:8px;">
-                    <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="color:#87ceeb;text-decoration:none;">
+                    <a href="https://archiveofourown.org/works/${workId}" target="_blank" style="text-decoration:none;">
                         <strong>${metadata.title}</strong> by ${metadata.author}
                     </a>
                     <button class="refresh-fic-btn" data-fic-id="${ficId}" data-work-id="${workId}"
@@ -611,12 +618,12 @@ updateWorksDisplay() {
                     </button>
                 </div>
                 ${this.currentTag === "To Read" && summary ? `
-                    <div style="font-size:0.85em;margin:8px 0;padding:8px;background:#44415a20;border-radius:4px;border-left:3px solid #6b8a7a;">
+                    <div style="font-size:0.85em;margin:8px 0;padding:8px;background:#44415a20;border-radius:4px;">
                         <strong>Summary:</strong> ${summary}
                     </div>
                 ` : ""}
                 ${note ? `
-                    <div style="font-size:0.9em;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;">
+                    <div style="font-size:16px;margin-top:6px;padding:8px;background:#44415a40;border-radius:4px;border-left:4px solid">
                         "${note.text}"
                         ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
                     </div>
@@ -640,11 +647,11 @@ updateWorksDisplay() {
                 <div class="author-note-item" data-author-id="${authorId}"
                      style="padding:12px 16px;margin:8px 0;border-radius:6px;background:#232136CC;border:1px solid #ddd;position:relative;">
                     <div style="margin-bottom:8px;">
-                        <a href="https://archiveofourown.org/users/${authorId}" target="_blank" style="color:#cbb974;font-weight:bold;">
+                        <a href="https://archiveofourown.org/users/${authorId}" target="_blank" style="font-weight:bold;">
                             ${authorId}
                         </a>
                     </div>
-                    <div style="font-size:0.95em;padding:8px;background:#44415a40;border-radius:4px;border-left:3px solid #cbb974;">
+                    <div style="font-size:16px;padding:8px;background:#44415a40;border-radius:4px;border-left:3px solid #e59888;">
                         <div style="white-space:pre-wrap;"><em>"${note.text}"</em></div>
                         ${note.date ? `<div style="font-size:0.8em;margin-top:4px;color:#999;">${note.date}</div>` : ""}
                     </div>
@@ -695,7 +702,7 @@ updateWorksDisplay() {
                     </div>
                 `;
 
-                const color = TAG_COLORS[tag] || { bg: "#6e6a86", text: "#000" };
+                const color = TAG_COLORS[tag] || { bg: "#6e6a86", text: "#fff" };
 
 // Fetch metadata
 this.workData = await Promise.all(
@@ -789,7 +796,7 @@ this.workData = await Promise.all(
                             ← Back to Tags
                         </button>
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <div style="padding:6px 12px;border-radius:4px;font-weight:bold;background:#cbb974;color:#fff;">
+                            <div style="padding:6px 12px;border-radius:4px;font-weight:bold;background:#e59888;color:#fff;">
                                 📝 Author Notes
                             </div>
                             <span style="color:#ccc;">${this.authorsData.length} author${this.authorsData.length === 1 ? "" : "s"}</span>
@@ -797,7 +804,7 @@ this.workData = await Promise.all(
                     </div>
                     <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
                         <span style="color:#ccc;font-size:0.9em;">Sort by:</span>
-                        <button id="sort-author-date" style="background:#cbb974;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;box-shadow:0 0 8px 2px #cbb97455;">Date Added</button>
+                        <button id="sort-author-date" style="background:#e59888;color:#fff;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;box-shadow:0 0 8px 2px #e5988855;">Date Added</button>
                         <button id="sort-author-name" style="background:#555;color:white;border:none;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.85em;">Name A-Z</button>
                     </div>
                 </div>
@@ -817,7 +824,7 @@ this.workData = await Promise.all(
                 tagGroups[tag].push(ficId);
             });
 
-            const tagOrder = ["Finished", "To Read", "Not Interested", "Dropped", "Disliked", "Favourite", "Dish"];
+            const tagOrder = PRESET_TAGS;
             const sortedTags = tagOrder.filter(tag => tagGroups[tag]);
 
             const tagsList = sortedTags.map(tag => {
@@ -845,8 +852,8 @@ this.workData = await Promise.all(
                 <div style="margin-top:20px;padding-top:20px;border-top:1px solid #555;">
                     <div class="author-notes-item" data-section="author-notes"
                          style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;margin:4px 0;
-                                border-radius:6px;background:#44415a40;border:2px solid #cbb974;
-                                box-shadow:0 0 8px 2px #cbb97455;cursor:pointer;transition:all 0.2s;">
+                                border-radius:6px;background:#44415a40;border:2px solid #e59888;
+                                box-shadow:0 0 8px 2px #e5988855;cursor:pointer;transition:all 0.2s;">
                         <span style="font-weight:bold;">📝 Author Notes</span>
                         <span style="font-size:0.9em;">${Object.keys(authorNotes).length} author${Object.keys(authorNotes).length === 1 ? "" : "s"}</span>
                     </div>
@@ -1936,7 +1943,7 @@ wrapper.deleteNote = function() {
             tagGroups[tag].push(ficId);
         });
 
-        const tagOrder = ["Finished", "To Read", "Not Interested", "Dropped", "Disliked", "Favourite", "Dish"];
+        const tagOrder = PRESET_TAGS;
         const sortedTags = tagOrder.filter(tag => tagGroups[tag]);
 
         if (sortedTags.length === 0 && Object.keys(authorNotes).length === 0) {
@@ -1971,8 +1978,8 @@ wrapper.deleteNote = function() {
             <div style="margin-top:20px;padding-top:20px;border-top:1px solid #555;">
                 <div class="author-notes-item" data-section="author-notes"
                      style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;margin:4px 0;
-                            border-radius:6px;background:#44415a40;border:2px solid #cbb974;
-                            box-shadow:0 0 8px 2px #cbb97455;cursor:pointer;transition:all 0.2s;">
+                            border-radius:6px;background:#44415a40;border:2px solid #e59888;
+                            box-shadow:0 0 8px 2px #e5988855;cursor:pointer;transition:all 0.2s;">
                     <span style="font-weight:bold;">📝 Author Notes</span>
                     <span style="font-size:0.9em;">${Object.keys(authorNotes).length} author${Object.keys(authorNotes).length === 1 ? "" : "s"}</span>
                 </div>
