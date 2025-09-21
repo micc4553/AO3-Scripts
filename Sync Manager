@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Sync Manager
-// @version      2.1.2
+// @version      2.1.3
 // @description  Sync AO3 tagging and notes data across devices using Google Apps Script
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -19,15 +19,14 @@
         AUTHOR_NOTES: "ao3_author_notes",
         SETTINGS: "ao3_sync_settings",
         LAST_SYNC: "ao3_last_sync",
-        LAST_SYNCED_NOTES: "ao3_last_synced_notes",
-        LAST_SYNCED_AUTHOR_NOTES: "ao3_last_synced_author_notes",
-        LAST_SYNCED_LABELS: "ao3_last_synced_labels",
-        DELETED_LABELS: "ao3_deleted_labels",
         DELETED_NOTES: "ao3_deleted_notes",
         DELETED_AUTHOR_NOTES: "ao3_deleted_author_notes",
         PERSONAL_TAGS: "ao3_personal_tags",
         TAG_LOOKUP: "ao3_tag_lookup",
-        TAG_LINKS: "ao3_tag_links"
+        TAG_LINKS: "ao3_tag_links",
+      DELETED_LABELS: "ao3_deleted_labels",
+        DELETED_PERSONAL_TAGS: "ao3_deleted_personal_tags",
+        DELETED_TAG_LOOKUP: "ao3_deleted_tag_lookup"
     };
 
     // Storage utility functions
@@ -52,8 +51,8 @@
         static saveAuthorNotes(v) { this.save(KEYS.AUTHOR_NOTES, v); }
         static loadSyncSettings() { return this.load(KEYS.SETTINGS); }
         static saveSyncSettings(v) { this.save(KEYS.SETTINGS, v); }
-        static loadDeletedLabels() { return this.load(KEYS.DELETED_LABELS); }
-        static saveDeletedLabels(v) { this.save(KEYS.DELETED_LABELS, v); }
+      static loadDeletedLabels() { return this.load(KEYS.DELETED_LABELS); }
+static saveDeletedLabels(v) { this.save(KEYS.DELETED_LABELS, v); }
         static loadDeletedNotes() { return this.load(KEYS.DELETED_NOTES); }
         static saveDeletedNotes(v) { this.save(KEYS.DELETED_NOTES, v); }
         static loadDeletedAuthorNotes() { return this.load(KEYS.DELETED_AUTHOR_NOTES); }
@@ -64,10 +63,10 @@
         static saveTagLookup(v) { this.save(KEYS.TAG_LOOKUP, v); }
         static loadTagLinks() { return this.load(KEYS.TAG_LINKS); }
         static saveTagLinks(v) { this.save(KEYS.TAG_LINKS, v); }
-      static loadDeletedPersonalTagWorks() { return this.load('ao3_deleted_personal_tag_works', []); }
-static saveDeletedPersonalTagWorks(v) { this.save('ao3_deleted_personal_tag_works', v); }
-static loadDeletedTagLookupTags() { return this.load('ao3_deleted_tag_lookup_tags', []); }
-static saveDeletedTagLookupTags(v) { this.save('ao3_deleted_tag_lookup_tags', v); }
+static loadDeletedPersonalTags() { return this.load(KEYS.DELETED_PERSONAL_TAGS); }
+static saveDeletedPersonalTags(v) { this.save(KEYS.DELETED_PERSONAL_TAGS, v); }
+static loadDeletedTagLookup() { return this.load(KEYS.DELETED_TAG_LOOKUP); }
+static saveDeletedTagLookup(v) { this.save(KEYS.DELETED_TAG_LOOKUP, v); }
     }
 
     // Validation utilities
@@ -354,12 +353,11 @@ static saveDeletedTagLookupTags(v) { this.save('ao3_deleted_tag_lookup_tags', v)
                         authorNotes: localStorage.getItem(KEYS.AUTHOR_NOTES) || "{}",
                         deletedNotes: Object.keys(Storage.loadDeletedNotes()),
                         deletedAuthorNotes: Object.keys(Storage.loadDeletedAuthorNotes()),
-                        deletedLabels: Object.keys(Storage.loadDeletedLabels()),
                         personalTags: localStorage.getItem(KEYS.PERSONAL_TAGS) || "{}",
                         tagLookup: localStorage.getItem(KEYS.TAG_LOOKUP) || "{}",
                         tagLinks: localStorage.getItem(KEYS.TAG_LINKS) || "{}",
-deletedPersonalTagWorks: Storage.loadDeletedPersonalTagWorks(),
-deletedTagLookupTags: Storage.loadDeletedTagLookupTags(),
+        deletedPersonalTags: Object.keys(Storage.loadDeletedPersonalTags()),
+        deletedTagLookup: Object.keys(Storage.loadDeletedTagLookup()),
                         timestamp: Date.now(),
                     },
                 };
