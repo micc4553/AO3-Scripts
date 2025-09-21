@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AO3 Personal Tags
-// @version      1.2.2
+// @version      1.2.3
 // @description  Add personal tags to AO3 works with customizable links (Firefox 115 ESR Compatible)
 // @match        https://archiveofourown.org/*
 // @icon         https://archiveofourown.org/favicon.ico
@@ -15,10 +15,28 @@
     var KEYS = {
         PERSONAL_TAGS: "ao3_personal_tags",
         TAG_LOOKUP: "ao3_tag_lookup",
-        TAG_LINKS: "ao3_tag_links"
+        TAG_LINKS: "ao3_tag_links",
+        DELETED_PERSONAL_TAGS: "ao3_deleted_personal_tags", // Add this
+        DELETED_TAG_LOOKUP: "ao3_deleted_tag_lookup"        // Add this
     };
 
-    function isValidWorkId(id) {
+function getDeletedPersonalTags() {
+    return JSON.parse(localStorage.getItem(KEYS.DELETED_PERSONAL_TAGS) || '{}');
+}
+
+function saveDeletedPersonalTags(deleted) {
+    localStorage.setItem(KEYS.DELETED_PERSONAL_TAGS, JSON.stringify(deleted));
+}
+
+function getDeletedTagLookup() {
+    return JSON.parse(localStorage.getItem(KEYS.DELETED_TAG_LOOKUP) || '{}');
+}
+
+function saveDeletedTagLookup(deleted) {
+    localStorage.setItem(KEYS.DELETED_TAG_LOOKUP, JSON.stringify(deleted));
+}
+
+  function isValidWorkId(id) {
         if (!id || typeof id !== "string") return false;
         if (id.indexOf('null') !== -1 || id.indexOf('undefined') !== -1 || id.indexOf('NaN') !== -1) return false;
         if (id.trim() === '' || id.length > 8) return false;
@@ -261,22 +279,29 @@
             }
             tagsDisplay.innerHTML = html;
 
-            var buttons = tagsDisplay.querySelectorAll('button');
-            for (var i = 0; i < buttons.length; i++) {
-                buttons[i].addEventListener('click', function() {
-                    var tagToDelete = this.getAttribute('data-tag');
-                    var currentTags = getPersonalTags(workInfo.id);
-                    var newTags = [];
-                    for (var j = 0; j < currentTags.length; j++) {
-                        if (currentTags[j] !== tagToDelete) {
-                            newTags.push(currentTags[j]);
-                        }
-                    }
-                    savePersonalTags(workInfo.id, newTags);
-                    removeWorkFromTag(tagToDelete, workInfo.id);
-                    updateTagsDisplay();
-                });
+var buttons = tagsDisplay.querySelectorAll('button');
+for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener('click', function() {
+        var tagToDelete = this.getAttribute('data-tag');
+        var currentTags = getPersonalTags(workInfo.id);
+        var newTags = [];
+        for (var j = 0; j < currentTags.length; j++) {
+            if (currentTags[j] !== tagToDelete) {
+                newTags.push(currentTags[j]);
             }
+        }
+
+        // Track the deletion
+        var deletedTags = getDeletedPersonalTags();
+        var deletionKey = workInfo.id + '_' + tagToDelete;
+        deletedTags[deletionKey] = Date.now();
+        saveDeletedPersonalTags(deletedTags);
+
+        savePersonalTags(workInfo.id, newTags);
+        removeWorkFromTag(tagToDelete, workInfo.id);
+        updateTagsDisplay();
+    });
+}
         }
 
         function addTag() {
@@ -477,7 +502,6 @@
 
                     if (!alreadyAdded) {
                         var works = tagLookup[normalizedTag];
-                        var workIds = Object.keys(works);
                         var displayName = capitalizeTag(normalizedTag);
 
                         tagsToShow.push({
@@ -524,11 +548,14 @@
 
                 // Create each tag section
                 for (var i = 0; i < tagsToShow.length; i++) {
-                    var tagInfo = tagsToShow[i];
+    var tagInfo = tagsToShow[i];
+    var works = tagInfo.works;
+    var workIds = Object.keys(works);
 
-                    if (workIds.length === 0) {
-                    continue;
-                    }
+    if (workIds.length === 0) {
+        continue;
+    }
+
 
                     // Create section container - using simpler styling
                     var section = document.createElement('div');
@@ -557,11 +584,20 @@
                     var worksContainer = document.createElement('div');
                     worksContainer.style.cssText = 'margin: 15px 0;';
 
-                    var works = tagInfo.works;
-                    var workIds = Object.keys(works);
+                    for (var j = 0; j < workIds.length; j++) {
+    var workId = workIds[j];
+    var work = works[workId];
 
+    var workItem = document.createElement('div');
+    workItem.style.cssText = 'margin: 10px 0; padding: 8px; border-left: 3px solid;';
 
-                    content.appendChild(worksContainer);
+    workItem.innerHTML = '<h4 style="margin: 0 0 5px 0;"><a href="/works/' + workId + '">' + (work.title || 'Untitled Work') + '</a></h4>' +
+        '<p style="margin: 0; color: #999; font-size: 0.9em;">by ' + (work.author && work.author.trim() ? work.author : 'Anonymous') + '</p>' +
+        (work.summary && work.summary.trim() ? '<p style="margin: 5px 0 0 0; font-size: 0.85em;">' + (work.summary.length > 250 ? work.summary.substring(0, 250) + '...' : work.summary) + '</p>' : '');
+
+    worksContainer.appendChild(workItem);
+}
+                  content.appendChild(worksContainer);
 
                     // Set up toggle functionality
                     var isExpanded = false;
@@ -759,24 +795,36 @@ function cleanupEmptyTags() {
     var tagLookup = JSON.parse(localStorage.getItem(KEYS.TAG_LOOKUP) || '{}');
     var cleaned = false;
 
-    // Remove works with empty tag arrays from personal tags
-    for (var workId in personalTags) {
-        console.log('Checking work:', workId, 'tags:', personalTags[workId], 'length:', personalTags[workId] ? personalTags[workId].length : 'undefined');
-        if (!personalTags[workId] || personalTags[workId].length === 0) {
-            delete personalTags[workId];
-            cleaned = true;
-            console.log('Removed empty personal tags for work:', workId);
-        }
-    }
+// Remove works with empty tag arrays from personal tags
+for (var workId in personalTags) {
+    console.log('Checking work:', workId, 'tags:', personalTags[workId], 'length:', personalTags[workId] ? personalTags[workId].length : 'undefined');
+    if (!personalTags[workId] || personalTags[workId].length === 0) {
+        delete personalTags[workId];
 
-    // Remove empty tag categories from tag lookup
-    for (var tagName in tagLookup) {
-        if (!tagLookup[tagName] || Object.keys(tagLookup[tagName]).length === 0) {
-            delete tagLookup[tagName];
-            cleaned = true;
-            console.log('Removed empty tag lookup for:', tagName);
-        }
+        // Track this deletion for sync
+        var deletedPersonalTags = getDeletedPersonalTags();
+        deletedPersonalTags[workId + '_cleanup'] = Date.now();
+        saveDeletedPersonalTags(deletedPersonalTags);
+
+        cleaned = true;
+        console.log('Removed empty personal tags for work:', workId);
     }
+}
+
+// Remove empty tag categories from tag lookup
+for (var tagName in tagLookup) {
+    if (!tagLookup[tagName] || Object.keys(tagLookup[tagName]).length === 0) {
+        delete tagLookup[tagName];
+
+        // Track this deletion for sync
+        var deletedTagLookup = getDeletedTagLookup();
+        deletedTagLookup[tagName + '_cleanup'] = Date.now();
+        saveDeletedTagLookup(deletedTagLookup);
+
+        cleaned = true;
+        console.log('Removed empty tag lookup for:', tagName);
+    }
+}
 
 // Check for orphaned tag lookup entries
 console.log('Checking for orphaned entries...');
@@ -804,8 +852,8 @@ for (var tagName in tagLookup) {
 
 // Always save if anything was cleaned
 if (cleaned) {
-    savePersonalTags(personalTags);
-    saveTagLookup(tagLookup);
+    localStorage.setItem(KEYS.PERSONAL_TAGS, JSON.stringify(personalTags));
+localStorage.setItem(KEYS.TAG_LOOKUP, JSON.stringify(tagLookup));
     console.log('Cleanup complete');
 }
 
