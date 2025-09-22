@@ -24,8 +24,11 @@
         METADATA_CACHE: "ao3_metadata_cache"
     };
 
+const PRESET_TAGS = ["Finished", "To Read", "Not Interested", "Dropped", "Disliked", "Liked", "Favourite", "Dish"];
+
     const COLLAPSE_TAGS = ["Finished", "Not Interested", "Dropped", "Disliked"];
     const BORDER_TAGS = ["To Read", "Liked", "Favourite", "Dish"];
+
 const TAG_CONFIG = {
     "Finished": { bg: "#8b7db8", text: "#fff" },
     "To Read": { bg: "#6b8a7a", text: "#fff" },
